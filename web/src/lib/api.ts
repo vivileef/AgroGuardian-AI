@@ -36,10 +36,12 @@ export type DiagnosisResult = {
   };
   diagnosis: string;
   recommendations: {
+    id?: string;
     title: string;
     detail: string;
     priority: number;
     timeframe: string;
+    completed?: boolean;
   }[];
   follow_up: {
     check_in_hours: number;
@@ -222,6 +224,139 @@ export async function getWeather(lat?: number, lon?: number) {
   return res.json() as Promise<WeatherSnapshot>;
 }
 
+export type ForecastDay = {
+  date: string;
+  day_label: string;
+  temp_max: number;
+  temp_min: number;
+  rain_mm: number;
+  rain_prob: number;
+  humidity_avg: number;
+  condition: string;
+  climate_risk: RiskLevel;
+  spray_ok: boolean;
+  spray_note: string;
+};
+
+export type WeatherBundle = {
+  current: WeatherSnapshot;
+  forecast: ForecastDay[];
+  spray_window: {
+    can_spray_today: boolean;
+    reason: string;
+    best_day: string | null;
+  };
+};
+
+export async function getWeatherBundle(lat?: number, lon?: number) {
+  const params = new URLSearchParams({ forecast: "1" });
+  if (lat != null) params.set("lat", String(lat));
+  if (lon != null) params.set("lon", String(lon));
+  const res = await fetch(`${apiBase()}/api/weather?${params}`, {
+    cache: "no-store",
+    credentials: "same-origin",
+  });
+  if (!res.ok) throw new Error("No se pudo obtener el clima");
+  return res.json() as Promise<WeatherBundle>;
+}
+
+export type AppNotification = {
+  id: string;
+  title: string;
+  body: string | null;
+  severity: string;
+  read: boolean;
+  created_at: string;
+};
+
+export async function getNotifications() {
+  const res = await apiFetch("/api/notifications", { cache: "no-store" });
+  return res.json() as Promise<AppNotification[]>;
+}
+
+export async function markNotificationRead(id: string) {
+  const res = await apiFetch("/api/notifications", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id }),
+  });
+  return res.json();
+}
+
+export async function setRecommendationDone(id: string, completed: boolean) {
+  const res = await apiFetch("/api/recommendations", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id, completed }),
+  });
+  return res.json();
+}
+
+export type Plot = {
+  id: string;
+  farm_id: string;
+  name: string;
+  area_ha: number;
+  lat?: number | null;
+  lng?: number | null;
+  health_status: string;
+};
+
+export async function getPlots(farmId?: string) {
+  const q = farmId ? `?farm_id=${encodeURIComponent(farmId)}` : "";
+  const res = await apiFetch(`/api/plots${q}`, { cache: "no-store" });
+  return res.json() as Promise<Plot[]>;
+}
+
+export async function createPlot(payload: {
+  farm_id: string;
+  name: string;
+  area_ha?: number;
+  lat?: number;
+  lng?: number;
+}) {
+  const res = await apiFetch("/api/plots", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  return res.json() as Promise<Plot>;
+}
+
+export type Lesson = {
+  id: string;
+  slug: string;
+  title: string;
+  crop: string | null;
+  disease_keywords: string[];
+  duration_min: number;
+  content_md: string;
+};
+
+export async function getLessons(disease?: string) {
+  const q = disease ? `?disease=${encodeURIComponent(disease)}` : "";
+  const res = await fetch(`${apiBase()}/api/lessons${q}`, { cache: "no-store" });
+  if (!res.ok) throw new Error("No se pudieron cargar las lecciones");
+  return res.json() as Promise<Lesson[]>;
+}
+
+export async function getCase(id: string) {
+  const res = await apiFetch(`/api/diagnose/${id}`, { cache: "no-store" });
+  return res.json() as Promise<DiagnosisResult>;
+}
+
+export async function getReportSummary(days = 30) {
+  const res = await apiFetch(`/api/reports/summary?days=${days}`, { cache: "no-store" });
+  return res.json() as Promise<{
+    period_days: number;
+    scans: number;
+    treatments_done: number;
+    treatments_pending: number;
+    by_disease: Record<string, number>;
+    recent: { id: string; disease: string; risk_level: string; created_at: string }[];
+  }>;
+}
+
 export type DiagnoseMeta = {
   crop?: string;
   lat?: number;
@@ -277,13 +412,42 @@ export async function diagnoseImageStream(
   });
   if (!res.ok || !res.body) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail || "Error al analizar la imagen");
+    throw new Error(
+      (err as { detail?: string }).detail ||
+        `Error al analizar la imagen (${res.status})`
+    );
   }
 
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
   let gotResult = false;
+  let streamError: string | null = null;
+
+  const consume = (chunk: string) => {
+    const lines = chunk.split("\n");
+    let event = "message";
+    const dataLines: string[] = [];
+    for (const line of lines) {
+      if (line.startsWith("event:")) event = line.slice(6).trim();
+      else if (line.startsWith("data:")) dataLines.push(line.slice(5).trimStart());
+    }
+    const data = dataLines.join("\n");
+    if (!data) return;
+    try {
+      const parsed = JSON.parse(data) as Record<string, unknown>;
+      if (event === "progress") handlers.onProgress(parsed as unknown as AgentTrace);
+      else if (event === "result") {
+        gotResult = true;
+        handlers.onResult(parsed as unknown as DiagnosisResult);
+      } else if (event === "error") {
+        streamError = String(parsed.detail || "Error en el pipeline");
+        handlers.onError?.(streamError);
+      }
+    } catch {
+      /* ignore partial JSON */
+    }
+  };
 
   while (true) {
     const { done, value } = await reader.read();
@@ -292,32 +456,17 @@ export async function diagnoseImageStream(
 
     const chunks = buffer.split("\n\n");
     buffer = chunks.pop() || "";
-
-    for (const chunk of chunks) {
-      const lines = chunk.split("\n");
-      let event = "message";
-      let data = "";
-      for (const line of lines) {
-        if (line.startsWith("event:")) event = line.slice(6).trim();
-        else if (line.startsWith("data:")) data += line.slice(5).trim();
-      }
-      if (!data) continue;
-      try {
-        const parsed = JSON.parse(data);
-        if (event === "progress") handlers.onProgress(parsed as AgentTrace);
-        else if (event === "result") {
-          gotResult = true;
-          handlers.onResult(parsed as DiagnosisResult);
-        } else if (event === "error") {
-          handlers.onError?.(parsed.detail || "Error en el pipeline");
-        }
-      } catch {
-        /* ignore partial JSON */
-      }
-    }
+    for (const chunk of chunks) consume(chunk);
   }
 
-  if (!gotResult) throw new Error("El stream terminó sin resultado");
+  // Flush trailing buffer (some runtimes omit final blank line)
+  if (buffer.trim()) consume(buffer);
+
+  if (gotResult) return;
+  if (streamError) throw new Error(streamError);
+  throw new Error(
+    "El análisis se interrumpió. Reintenta; si sigue fallando, revisa OPENROUTER_API_KEY y OPENROUTER_VISION_MODEL en Vercel."
+  );
 }
 
 export async function getCases() {

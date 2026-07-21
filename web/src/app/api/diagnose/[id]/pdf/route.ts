@@ -1,10 +1,27 @@
 import { NextResponse } from "next/server";
+import { requireUserId } from "@/lib/server/auth";
+import { getConfig } from "@/lib/server/config";
 import { getCaseStore } from "@/lib/server/demo-data";
 import { buildReportHtml } from "@/lib/server/report";
+import { getAdminClient, getDetection } from "@/lib/server/supabase-admin";
 
 export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
-  const result = getCaseStore().get(id);
+  let result = getCaseStore().get(id);
+
+  if (!result) {
+    const { userId } = await requireUserId();
+    const cfg = getConfig();
+    const client = userId ? getAdminClient(cfg) : null;
+    if (client && userId) {
+      try {
+        result = (await getDetection(client, userId, id)) ?? undefined;
+      } catch {
+        /* 404 */
+      }
+    }
+  }
+
   if (!result) {
     return NextResponse.json({ detail: "Caso no encontrado." }, { status: 404 });
   }

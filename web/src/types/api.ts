@@ -21,10 +21,12 @@ export type WeatherSnapshot = {
 };
 
 export type Recommendation = {
+  id?: string;
   title: string;
   detail: string;
   priority: number;
   timeframe: string;
+  completed?: boolean;
 };
 
 export type FollowUpPlan = {
@@ -50,6 +52,9 @@ export type DiagnosisResult = {
   follow_up: FollowUpPlan;
   agent_trace: AgentTrace[];
   demo: boolean;
+  image_path?: string | null;
+  farm_id?: string | null;
+  crop_id?: string | null;
 };
 
 export type OnboardingPayload = {

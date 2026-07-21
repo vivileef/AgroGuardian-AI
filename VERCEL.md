@@ -16,6 +16,16 @@ El Next.js vive en **`web/`**. Si Vercel construye desde la raíz del repo, sale
 4. **Environment Variables** → pega todas las de producción (Clerk, Supabase, OpenRouter, `DEMO_MODE=false`)
 5. **Deployments** → ⋮ en el último → **Redeploy** (sin cache si quieres: uncheck “Use existing Build Cache”)
 
+## Supabase (fases del agricultor)
+
+En el SQL Editor de Supabase, ejecuta en orden:
+
+1. `supabase/migrations/001_schema.sql`
+2. `supabase/migrations/002_rls_policies.sql`
+3. `supabase/migrations/003_farmer_phases.sql` ← detección completa, parcelas, lecciones, precios
+
+Sin el `003`, la app igual guarda diagnósticos (payload en `agent_trace`); con el `003` quedan columnas dedicadas + lecciones/precios en DB.
+
 ## Clerk
 
 En [dashboard.clerk.com](https://dashboard.clerk.com) → Domains:
@@ -36,12 +46,9 @@ Si el Root Directory sigue vacío o es `.`, el 404 volverá.
 ## Redeploy desde CLI (opcional)
 
 ```powershell
-cd web
-npx vercel login
-npx vercel --prod
+cd c:\Users\Usuario\Projects\AgroGuardian-AI
+npx vercel deploy --prod
 ```
-
-(Eso despliega desde `web/` directamente.)
 
 ## URL del proyecto
 

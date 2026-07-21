@@ -5,6 +5,10 @@ import { getCaseStore } from "@/lib/server/demo-data";
 import { runDiagnosisPipeline } from "@/lib/server/orchestrator";
 import { getAdminClient, saveDetection } from "@/lib/server/supabase-admin";
 
+export const runtime = "nodejs";
+export const maxDuration = 60;
+export const dynamic = "force-dynamic";
+
 export async function POST(req: NextRequest) {
   const { userId, error } = await requireUserId();
   if (error || !userId) return error!;
@@ -16,6 +20,8 @@ export async function POST(req: NextRequest) {
   }
 
   const crop = form.get("crop")?.toString() || null;
+  const cropId = form.get("crop_id")?.toString() || null;
+  const farmId = form.get("farm_id")?.toString() || null;
   const latRaw = form.get("lat")?.toString();
   const lonRaw = form.get("lon")?.toString();
   const bytes = Buffer.from(await file.arrayBuffer());
@@ -38,12 +44,20 @@ export async function POST(req: NextRequest) {
       lon: lonRaw ? Number(lonRaw) : null,
     });
 
+    result.crop_id = cropId;
+    result.farm_id = farmId;
+
     getCaseStore().set(result.id, result);
 
     const client = getAdminClient(cfg);
     if (client) {
       try {
-        await saveDetection(client, userId, result);
+        const id = await saveDetection(client, userId, result, {
+          crop_id: cropId,
+          farm_id: farmId,
+        });
+        result.id = id;
+        getCaseStore().set(result.id, result);
       } catch {
         /* DB optional */
       }

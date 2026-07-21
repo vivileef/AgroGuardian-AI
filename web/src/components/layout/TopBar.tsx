@@ -3,8 +3,13 @@
 import { UserButton, useUser } from "@clerk/nextjs";
 import { Bell, ChevronDown, HelpCircle } from "lucide-react";
 import { useEffect, useState } from "react";
-import { getFarms, type Farm } from "@/lib/api";
-import { ALERTS } from "@/lib/mock-data";
+import {
+  getFarms,
+  getNotifications,
+  markNotificationRead,
+  type AppNotification,
+  type Farm,
+} from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 function greeting() {
@@ -19,6 +24,7 @@ export function TopBar() {
   const [farms, setFarms] = useState<Farm[]>([]);
   const [farmId, setFarmId] = useState<string>("");
   const [showAlerts, setShowAlerts] = useState(false);
+  const [alerts, setAlerts] = useState<AppNotification[]>([]);
 
   useEffect(() => {
     getFarms()
@@ -27,14 +33,26 @@ export function TopBar() {
         if (data.length && !farmId) setFarmId(data[0].id);
       })
       .catch(() => {
-        setFarms([{ id: "demo", name: "Finca La Esperanza", lat: -1.0547, lng: -80.4545, area_ha: 1, health_status: "riesgo" }]);
-        setFarmId("demo");
+        setFarms([]);
       });
+    getNotifications()
+      .then(setAlerts)
+      .catch(() => setAlerts([]));
   }, [farmId]);
 
   const firstName = user?.firstName || user?.username || "Agricultor";
   const selectedFarm = farms.find((f) => f.id === farmId) ?? farms[0];
-  const unread = ALERTS.length;
+  const unread = alerts.filter((a) => !a.read).length;
+
+  const onOpenAlert = async (a: AppNotification) => {
+    if (a.read) return;
+    try {
+      await markNotificationRead(a.id);
+      setAlerts((prev) => prev.map((x) => (x.id === a.id ? { ...x, read: true } : x)));
+    } catch {
+      /* ignore */
+    }
+  };
 
   return (
     <header className="sticky top-0 z-40 border-b border-forest/8 bg-cream/90 backdrop-blur-md">
@@ -91,10 +109,24 @@ export function TopBar() {
                     Alertas recientes
                   </p>
                   <ul className="space-y-2 max-h-64 overflow-y-auto">
-                    {ALERTS.map((a) => (
-                      <li key={a.id} className="rounded-xl bg-mist/70 px-3 py-2 text-xs">
-                        <p className="font-medium text-ink">{a.title}</p>
-                        <p className="text-ink/50 mt-0.5">{a.detail}</p>
+                    {alerts.length === 0 && (
+                      <li className="text-xs text-ink/45 px-2 py-4 text-center">
+                        Sin alertas por ahora
+                      </li>
+                    )}
+                    {alerts.map((a) => (
+                      <li key={a.id}>
+                        <button
+                          type="button"
+                          onClick={() => onOpenAlert(a)}
+                          className={cn(
+                            "w-full text-left rounded-xl px-3 py-2 text-xs",
+                            a.read ? "bg-mist/40" : "bg-mist/70"
+                          )}
+                        >
+                          <p className="font-medium text-ink">{a.title}</p>
+                          {a.body && <p className="text-ink/50 mt-0.5">{a.body}</p>}
+                        </button>
                       </li>
                     ))}
                   </ul>

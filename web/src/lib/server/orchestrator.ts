@@ -41,10 +41,30 @@ function demoDetection(cropHint?: string | null): DiseaseDetection {
 function demoAgronomist(detection: DiseaseDetection, climate: WeatherSnapshot) {
   const diagnosis = `Encontramos una alta probabilidad de ${detection.disease} (${Math.round(detection.confidence * 100)}%) en ${detection.crop}. Las señales visuales indican afectación en ${detection.affected_part}. Debido a la humedad registrada (${climate.humidity_pct}%) y la condición «${climate.condition}», existe un alto riesgo de propagación en las próximas 48–72 h.`;
   const recommendations: Recommendation[] = [
-    { title: "Eliminar hojas afectadas", detail: "Retirar y destruir hojas con lesiones activas fuera del lote.", priority: 1, timeframe: "hoy" },
-    { title: "Evitar riego por aspersión", detail: "La humedad foliar favorece la esporulación; suspender riego aéreo hoy.", priority: 1, timeframe: "24h" },
-    { title: "Aplicar fungicida recomendado", detail: "Aplicar en focos afectados según etiqueta local (consulta técnica MAG).", priority: 2, timeframe: "48h" },
-    { title: "Monitorear lote vecino", detail: "Inspeccionar plantas adyacentes y registrar nuevos síntomas.", priority: 2, timeframe: "72h" },
+    {
+      title: "Eliminar hojas afectadas",
+      detail: "Retirar y destruir hojas con lesiones activas fuera del lote.",
+      priority: 1,
+      timeframe: "hoy",
+    },
+    {
+      title: "Evitar riego por aspersión",
+      detail: "La humedad foliar favorece la esporulación; suspender riego aéreo hoy.",
+      priority: 1,
+      timeframe: "24h",
+    },
+    {
+      title: "Aplicar fungicida recomendado",
+      detail: "Aplicar en focos afectados según etiqueta local (consulta técnica MAG).",
+      priority: 2,
+      timeframe: "48h",
+    },
+    {
+      title: "Monitorear lote vecino",
+      detail: "Inspeccionar plantas adyacentes y registrar nuevos síntomas.",
+      priority: 2,
+      timeframe: "72h",
+    },
   ];
   const follow_up: FollowUpPlan = {
     check_in_hours: 72,
@@ -75,15 +95,28 @@ Responde SOLO JSON:
 }
 Máximo 4 recomendaciones.`;
 
-  const raw = await chatCompletion(cfg, [
-    { role: "system", content: "Eres AgroGuardian, agrónomo IA. Responde solo JSON." },
-    { role: "user", content: prompt },
-  ]);
+  const raw = await chatCompletion(
+    cfg,
+    [
+      { role: "system", content: "Eres AgroGuardian, agrónomo IA. Responde solo JSON." },
+      { role: "user", content: prompt },
+    ],
+    {
+      fallbackModels: [
+        "openai/gpt-oss-20b:free",
+        "meta-llama/llama-3.3-70b-instruct:free",
+        "google/gemma-3-27b-it:free",
+      ],
+    }
+  );
 
   const data = extractJson(raw);
+  const recommendations = Array.isArray(data.recommendations)
+    ? (data.recommendations as Recommendation[])
+    : [];
   return {
     diagnosis: String(data.diagnosis ?? ""),
-    recommendations: (data.recommendations as Recommendation[]) ?? [],
+    recommendations: recommendations.length ? recommendations : demoAgronomist(detection, climate).recommendations,
     follow_up: (data.follow_up as FollowUpPlan) ?? { check_in_hours: 72, steps: [] },
   };
 }
@@ -104,11 +137,15 @@ export async function runDiagnosisPipeline(
     traces.push(trace);
     opts.onProgress?.(trace);
   };
-  const useDemo = cfg.demoMode && !hasOpenRouter(cfg);
+
+  // Demo if forced, or if there is no API key at all.
+  const forceDemo = cfg.demoMode || !hasOpenRouter(cfg);
+  let usedFallback = forceDemo;
 
   let t0 = Date.now();
   let detection: DiseaseDetection;
-  if (useDemo) {
+
+  if (forceDemo) {
     detection = demoDetection(opts.cropHint);
     pushTrace({
       agent: "Disease Detector",
@@ -117,24 +154,35 @@ export async function runDiagnosisPipeline(
       duration_ms: Date.now() - t0,
     });
   } else {
-    let prompt = VISION_PROMPT;
-    if (opts.cropHint) prompt += `\nEl agricultor indica que el cultivo es: ${opts.cropHint}.`;
-    const raw = await visionAnalyze(cfg, imageBytes, prompt, opts.mime ?? "image/jpeg");
-    const payload = extractJson(raw);
-    detection = {
-      disease: String(payload.disease ?? "Desconocido"),
-      crop: String(payload.crop ?? opts.cropHint ?? "Desconocido"),
-      confidence: Number(payload.confidence ?? 0.5),
-      affected_part: String(payload.affected_part ?? "hoja"),
-      risk_level: String(payload.risk_level ?? "medio").toLowerCase() as RiskLevel,
-      rationale: String(payload.rationale ?? ""),
-    };
-    pushTrace({
-      agent: "Disease Detector",
-      status: "ok",
-      summary: `${detection.disease} · ${Math.round(detection.confidence * 100)}%`,
-      duration_ms: Date.now() - t0,
-    });
+    try {
+      let prompt = VISION_PROMPT;
+      if (opts.cropHint) prompt += `\nEl agricultor indica que el cultivo es: ${opts.cropHint}.`;
+      const raw = await visionAnalyze(cfg, imageBytes, prompt, opts.mime ?? "image/jpeg");
+      const payload = extractJson(raw);
+      detection = {
+        disease: String(payload.disease ?? "Desconocido"),
+        crop: String(payload.crop ?? opts.cropHint ?? "Desconocido"),
+        confidence: Number(payload.confidence ?? 0.5),
+        affected_part: String(payload.affected_part ?? "hoja"),
+        risk_level: String(payload.risk_level ?? "medio").toLowerCase() as RiskLevel,
+        rationale: String(payload.rationale ?? ""),
+      };
+      pushTrace({
+        agent: "Disease Detector",
+        status: "ok",
+        summary: `${detection.disease} · ${Math.round(detection.confidence * 100)}%`,
+        duration_ms: Date.now() - t0,
+      });
+    } catch (e) {
+      usedFallback = true;
+      detection = demoDetection(opts.cropHint);
+      pushTrace({
+        agent: "Disease Detector",
+        status: "fallback-demo",
+        summary: `Visión falló (${e instanceof Error ? e.message.slice(0, 80) : "error"}); usando detección de referencia`,
+        duration_ms: Date.now() - t0,
+      });
+    }
   }
 
   t0 = Date.now();
@@ -157,12 +205,38 @@ export async function runDiagnosisPipeline(
   let diagnosis: string;
   let recommendations: Recommendation[];
   let follow_up: FollowUpPlan;
-  if (useDemo) {
+
+  if (forceDemo || usedFallback) {
     ({ diagnosis, recommendations, follow_up } = demoAgronomist(detection, climate));
-    pushTrace({ agent: "Agronomist", status: "demo", summary: "Plan demo", duration_ms: Date.now() - t0 });
+    pushTrace({
+      agent: "Agronomist",
+      status: usedFallback && !forceDemo ? "fallback-demo" : "demo",
+      summary: "Plan de tratamiento (referencia)",
+      duration_ms: Date.now() - t0,
+    });
   } else {
-    ({ diagnosis, recommendations, follow_up } = await llmAgronomist(cfg, detection, climate));
-    pushTrace({ agent: "Agronomist", status: "ok", summary: "Diagnóstico contextualizado", duration_ms: Date.now() - t0 });
+    try {
+      ({ diagnosis, recommendations, follow_up } = await llmAgronomist(cfg, detection, climate));
+      if (!diagnosis.trim()) {
+        ({ diagnosis, recommendations, follow_up } = demoAgronomist(detection, climate));
+        usedFallback = true;
+      }
+      pushTrace({
+        agent: "Agronomist",
+        status: usedFallback ? "fallback-demo" : "ok",
+        summary: "Diagnóstico contextualizado",
+        duration_ms: Date.now() - t0,
+      });
+    } catch (e) {
+      usedFallback = true;
+      ({ diagnosis, recommendations, follow_up } = demoAgronomist(detection, climate));
+      pushTrace({
+        agent: "Agronomist",
+        status: "fallback-demo",
+        summary: `LLM falló (${e instanceof Error ? e.message.slice(0, 60) : "error"}); plan de referencia`,
+        duration_ms: Date.now() - t0,
+      });
+    }
   }
 
   pushTrace({
@@ -182,6 +256,6 @@ export async function runDiagnosisPipeline(
     recommendations,
     follow_up,
     agent_trace: traces,
-    demo: useDemo,
+    demo: forceDemo || usedFallback,
   };
 }

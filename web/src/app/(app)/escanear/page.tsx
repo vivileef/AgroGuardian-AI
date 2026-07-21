@@ -1,29 +1,55 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Loader2, Sparkles } from "lucide-react";
 import { AgentProgress, type AgentStep } from "@/components/scan/AgentProgress";
 import { CameraCapture, ImageDropzone } from "@/components/scan/CameraCapture";
 import {
+  diagnoseImage,
   diagnoseImageStream,
+  getCrops,
+  getFarms,
   pdfUrl,
   type AgentTrace,
+  type Crop,
   type DiagnosisResult,
+  type Farm,
 } from "@/lib/api";
 import { SAMPLE_IMAGES } from "@/lib/samples";
 import { cn, pct, riskColor } from "@/lib/utils";
 
-const CROPS = ["Plátano", "Cacao", "Maíz", "Café", "Arroz", "Otro"];
+const FALLBACK_CROPS = ["Plátano", "Cacao", "Maíz", "Café", "Arroz", "Otro"];
 
 export default function EscanearPage() {
   const router = useRouter();
   const [file, setFile] = useState<File | null>(null);
   const [crop, setCrop] = useState("Plátano");
+  const [cropId, setCropId] = useState<string | undefined>();
+  const [farmId, setFarmId] = useState<string | undefined>();
+  const [myCrops, setMyCrops] = useState<Crop[]>([]);
+  const [farms, setFarms] = useState<Farm[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<DiagnosisResult | null>(null);
   const [steps, setSteps] = useState<AgentStep[]>([]);
+
+  useEffect(() => {
+    Promise.all([getCrops(), getFarms()])
+      .then(([crops, f]) => {
+        setMyCrops(crops);
+        setFarms(f);
+        if (crops[0]) {
+          setCrop(crops[0].name);
+          setCropId(crops[0].id);
+          setFarmId(crops[0].farm_id);
+        } else if (f[0]) {
+          setFarmId(f[0].id);
+        }
+      })
+      .catch(() => null);
+  }, []);
 
   const preview = useMemo(() => (file ? URL.createObjectURL(file) : null), [file]);
 
@@ -34,11 +60,26 @@ export default function EscanearPage() {
     setSteps([]);
   };
 
+  const selectMyCrop = (c: Crop) => {
+    setCrop(c.name);
+    setCropId(c.id);
+    setFarmId(c.farm_id);
+  };
+
   const loadSample = async (src: string, name: string, cropName: string) => {
     const res = await fetch(src);
     const blob = await res.blob();
     const f = new File([blob], name, { type: blob.type || "image/jpeg" });
     setCrop(cropName);
+    const match = myCrops.find((c) =>
+      c.name.toLowerCase().includes(cropName.toLowerCase().split(" ")[0])
+    );
+    if (match) {
+      setCropId(match.id);
+      setFarmId(match.farm_id);
+    } else {
+      setCropId(undefined);
+    }
     onFile(f);
   };
 
@@ -63,19 +104,29 @@ export default function EscanearPage() {
         }
       }
 
+      const meta = { crop, lat, lon, crop_id: cropId, farm_id: farmId };
       const upsert = (trace: AgentTrace) => {
         setSteps((prev) => [...prev.filter((s) => s.agent !== trace.agent), trace]);
       };
 
-      await diagnoseImageStream(file, { crop, lat, lon }, {
-        onProgress: upsert,
-        onResult: (data) => {
-          setResult(data);
-          setSteps(data.agent_trace);
-          sessionStorage.setItem(`diagnosis:${data.id}`, JSON.stringify(data));
-        },
-        onError: (msg) => setError(msg),
-      });
+      try {
+        await diagnoseImageStream(file, meta, {
+          onProgress: upsert,
+          onResult: (data) => {
+            setResult(data);
+            setSteps(data.agent_trace);
+            sessionStorage.setItem(`diagnosis:${data.id}`, JSON.stringify(data));
+          },
+          onError: (msg) => setError(msg),
+        });
+      } catch {
+        // Fallback: non-streaming diagnose (más estable en algunos hosts)
+        const data = await diagnoseImage(file, meta);
+        setResult(data);
+        setSteps(data.agent_trace);
+        sessionStorage.setItem(`diagnosis:${data.id}`, JSON.stringify(data));
+        setError(null);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error al analizar");
     } finally {
@@ -89,32 +140,67 @@ export default function EscanearPage() {
         <p className="text-xs uppercase tracking-[0.2em] text-leaf">Sanidad vegetal</p>
         <h1 className="font-display text-3xl text-forest mt-1">Escanear planta</h1>
         <p className="text-sm text-ink/60 mt-1">
-          Toma una foto de la hoja o sube una imagen. La IA detecta la enfermedad, consulta el clima y
-          recomienda acciones.
+          Vincula el escaneo a tu cultivo registrado para guardar el historial en tu finca.
         </p>
       </header>
 
       <div className="rounded-2xl border border-forest/10 bg-cream p-4 sm:p-5 space-y-5">
-        <div>
-          <label className="text-xs font-medium text-ink/60">Cultivo</label>
-          <div className="mt-2 flex flex-wrap gap-2">
-            {CROPS.map((c) => (
-              <button
-                key={c}
-                type="button"
-                onClick={() => setCrop(c)}
-                className={cn(
-                  "rounded-lg px-3 py-1.5 text-sm border transition-colors",
-                  crop === c
-                    ? "bg-leaf text-white border-leaf"
-                    : "bg-white border-forest/15 text-ink hover:border-leaf/40"
-                )}
-              >
-                {c}
-              </button>
-            ))}
+        {myCrops.length > 0 ? (
+          <div>
+            <label className="text-xs font-medium text-ink/60">Tu cultivo</label>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {myCrops.map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => selectMyCrop(c)}
+                  className={cn(
+                    "rounded-lg px-3 py-1.5 text-sm border transition-colors",
+                    cropId === c.id
+                      ? "bg-leaf text-white border-leaf"
+                      : "bg-white border-forest/15 text-ink hover:border-leaf/40"
+                  )}
+                >
+                  {c.name}
+                </button>
+              ))}
+            </div>
+            <p className="text-[11px] text-ink/40 mt-2">
+              Finca: {farms.find((f) => f.id === farmId)?.name ?? "—"}
+            </p>
           </div>
-        </div>
+        ) : (
+          <div>
+            <label className="text-xs font-medium text-ink/60">Cultivo (tipo)</label>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {FALLBACK_CROPS.map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  onClick={() => {
+                    setCrop(c);
+                    setCropId(undefined);
+                  }}
+                  className={cn(
+                    "rounded-lg px-3 py-1.5 text-sm border transition-colors",
+                    crop === c
+                      ? "bg-leaf text-white border-leaf"
+                      : "bg-white border-forest/15 text-ink hover:border-leaf/40"
+                  )}
+                >
+                  {c}
+                </button>
+              ))}
+            </div>
+            <p className="text-[11px] text-ink/45 mt-2">
+              Registra cultivos en{" "}
+              <Link href="/cultivos" className="text-leaf underline">
+                Mis cultivos
+              </Link>{" "}
+              para vincular el historial.
+            </p>
+          </div>
+        )}
 
         <div>
           <p className="text-xs font-medium text-ink/60 mb-2">Muestras demo (estilo PlantVillage)</p>
@@ -178,9 +264,6 @@ export default function EscanearPage() {
         {error && (
           <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
             {error}
-            <span className="block text-xs mt-1 opacity-80">
-              Verifica OPENROUTER_API_KEY y OPENROUTER_VISION_MODEL en tu entorno (Vercel o .env.local).
-            </span>
           </p>
         )}
       </div>
@@ -189,7 +272,7 @@ export default function EscanearPage() {
         <div className="rounded-2xl border border-forest/10 bg-white p-4 sm:p-6 space-y-4 shadow-sm animate-fade-up">
           {result.demo && (
             <p className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-900">
-              Modo demo (sin OpenRouter). Configura OPENROUTER_API_KEY con modelos gratuitos (:free).
+              Modo demo (sin OpenRouter).
             </p>
           )}
 
@@ -218,55 +301,31 @@ export default function EscanearPage() {
 
           <p className="text-sm leading-relaxed text-ink/80">{result.diagnosis}</p>
 
-          <div className="grid sm:grid-cols-3 gap-2 text-xs">
-            <Metric label="Temp" value={`${result.weather.temperature_c}°C`} />
-            <Metric label="Humedad" value={`${result.weather.humidity_pct}%`} />
-            <Metric label="Clima" value={result.weather.condition} />
-          </div>
-
-          <div>
-            <h3 className="font-medium text-forest mb-2">IA recomienda</h3>
-            <ul className="space-y-2">
-              {result.recommendations.map((r, idx) => (
-                <li key={idx} className="rounded-xl border border-forest/10 bg-mist/60 px-3 py-2.5">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-sm font-medium">{r.title}</p>
-                    <span className="text-[10px] uppercase tracking-wide text-ink/40">{r.timeframe}</span>
-                  </div>
-                  <p className="text-xs text-ink/60 mt-0.5">{r.detail}</p>
-                </li>
-              ))}
-            </ul>
-          </div>
-
           <div className="flex flex-wrap gap-2 pt-1">
+            <Link
+              href={`/diagnosticos/${result.id}`}
+              className="rounded-xl bg-leaf px-4 py-2.5 text-sm font-medium text-white hover:bg-leaf-dark"
+            >
+              Ver plan y marcar acciones
+            </Link>
             <a
               href={pdfUrl(result.id)}
               className="rounded-xl border border-forest/15 bg-white px-4 py-2.5 text-sm hover:bg-mist"
               target="_blank"
               rel="noreferrer"
             >
-              Descargar reporte
+              Descargar PDF
             </a>
             <button
               type="button"
               onClick={() => router.push("/diagnosticos")}
-              className="rounded-xl bg-leaf px-4 py-2.5 text-sm font-medium text-white hover:bg-leaf-dark"
+              className="rounded-xl border border-forest/15 px-4 py-2.5 text-sm hover:bg-mist"
             >
-              Ver historial
+              Historial
             </button>
           </div>
         </div>
       )}
-    </div>
-  );
-}
-
-function Metric({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-xl bg-mist px-3 py-2">
-      <p className="text-[10px] uppercase tracking-wide text-ink/40">{label}</p>
-      <p className="font-medium text-ink truncate">{value}</p>
     </div>
   );
 }

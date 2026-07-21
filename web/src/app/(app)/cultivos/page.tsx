@@ -147,6 +147,11 @@ export default function CultivosPage() {
       )}
 
       <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-3">
+        {crops.length === 0 && (
+          <p className="sm:col-span-2 xl:col-span-3 text-sm text-ink/55 rounded-2xl border border-dashed border-forest/20 bg-cream px-4 py-10 text-center">
+            Aún no tienes cultivos. Crea una finca y agrega tu primer lote.
+          </p>
+        )}
         {crops.map((c) => (
           <article
             key={c.id}

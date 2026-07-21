@@ -79,15 +79,28 @@ export default function MercadosPage() {
       <div className="grid sm:grid-cols-2 gap-4">
         <div className="rounded-2xl border border-forest/10 bg-cream p-5">
           <TrendingUp className="h-8 w-8 text-leaf mb-3" />
-          <h2 className="font-display text-lg text-forest">Conectar con compradores</h2>
-          <p className="text-sm text-ink/60 mt-2">
-            Próximamente: marketplace para vender cosecha directamente a cooperativas y exportadores
-            certificados en Manta y Guayaquil.
-          </p>
+          <h2 className="font-display text-lg text-forest">Alertas de precio</h2>
+          <ul className="mt-3 space-y-2 text-sm">
+            {prices
+              .filter((p) => p.trend !== "stable")
+              .map((p) => (
+                <li key={p.crop} className="rounded-xl bg-mist/70 px-3 py-2">
+                  <strong>{p.crop}</strong>{" "}
+                  {p.trend === "up" ? "subió" : "bajó"} en {p.market} (${p.price_usd.toFixed(2)}/
+                  {p.unit}).
+                </li>
+              ))}
+            {prices.filter((p) => p.trend !== "stable").length === 0 && (
+              <li className="text-ink/50 text-xs">Sin cambios fuertes esta semana.</li>
+            )}
+          </ul>
         </div>
         <div className="rounded-2xl border border-forest/10 bg-cream p-5 text-sm text-ink/60">
           <p>
-            Fuentes de datos: MAG Ecuador, mercados mayoristas de Portoviejo y referencias FAOSTAT.
+            Precios de referencia para orientación de venta (Portoviejo, Manta, Chone). Marketplace
+            de compradores: próximamente.
+          </p>
+          <p className="mt-3 text-xs text-ink/40">
             Actualizado: {prices[0]?.updated ?? "—"}.
           </p>
         </div>
