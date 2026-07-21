@@ -25,7 +25,7 @@ async def chat_assistant(body: ChatRequest) -> ChatResponse:
             f"es {climate.climate_risk.value}. "
             "Si planeas fertilizar o sembrar, espera 48h si se esperan lluvias intensas "
             "para evitar lavado de nutrientes y estrés en plántulas. "
-            "(Modo demo — configura OPENROUTER_API_KEY para respuestas GPT-4o.)"
+            "(Modo demo — configura OPENROUTER_API_KEY para modelos gratuitos vía OpenRouter.)"
         )
         return ChatResponse(reply=reply, sources=sources, demo=True)
 
@@ -44,5 +44,5 @@ async def chat_assistant(body: ChatRequest) -> ChatResponse:
     messages.append({"role": "user", "content": body.message})
 
     reply = await openrouter.chat_completion(settings, messages)
-    sources.append("GPT-4o vía OpenRouter")
+    sources.append(f"{settings.openrouter_model} vía OpenRouter")
     return ChatResponse(reply=reply, sources=sources, demo=False)

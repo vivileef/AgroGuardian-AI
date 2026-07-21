@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+﻿from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
@@ -11,7 +11,7 @@ settings = get_settings()
 
 app = FastAPI(
     title="AgroGuardian AI",
-    description="API de sanidad vegetal — detección temprana de plagas para Manabí",
+    description="API de sanidad vegetal ÔÇö detecci├│n temprana de plagas para Manab├¡",
     version="0.1.0",
 )
 
@@ -48,6 +48,6 @@ async def health() -> HealthResponse:
 async def root() -> dict[str, str]:
     return {
         "name": "AgroGuardian AI",
-        "tagline": "Tu agrónomo inteligente disponible 24/7",
+        "tagline": "Tu agr├│nomo inteligente disponible 24/7",
         "docs": "/docs",
     }

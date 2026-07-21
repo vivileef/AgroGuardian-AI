@@ -21,7 +21,7 @@ export default function DiagnosticosPage() {
       <header>
         <p className="text-xs uppercase tracking-[0.2em] text-leaf">Historial</p>
         <h1 className="font-display text-3xl text-forest mt-1">Diagnósticos</h1>
-        <p className="text-sm text-ink/60 mt-1">Casos guardados en esta sesión del backend.</p>
+        <p className="text-sm text-ink/60 mt-1">Casos guardados en esta sesión (memoria del servidor).</p>
       </header>
 
       {error && (

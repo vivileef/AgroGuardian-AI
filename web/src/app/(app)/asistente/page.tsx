@@ -42,8 +42,8 @@ export default function AsistentePage() {
           role: "assistant",
           content:
             err instanceof Error
-              ? `No pude responder: ${err.message}. ¿Está el backend en :8000?`
-              : "Error de conexión.",
+              ? `No pude responder: ${err.message}. Revisa OPENROUTER_API_KEY y OPENROUTER_MODEL en Vercel (modelos :free cambian a menudo).`
+              : "Error de conexión con la API.",
         },
       ]);
     } finally {

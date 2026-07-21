@@ -1,4 +1,7 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+function apiBase() {
+  if (typeof window !== "undefined") return "";
+  return process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ?? "";
+}
 
 export type RiskLevel = "bajo" | "medio" | "alto" | "critico";
 
@@ -73,21 +76,140 @@ export type Crop = {
   hectares: number;
 };
 
-export function mediaUrl(path?: string | null) {
-  if (!path) return null;
-  if (path.startsWith("http")) return path;
-  return `${API_URL}/api/media/${path.replace(/^\//, "")}`;
+export type DashboardStats = {
+  active_crops: number;
+  detected_cases: number;
+  climate_risk: string;
+  avg_health: number;
+  crop_status: { healthy: number; risk: number; infected: number };
+};
+
+export type MarketPrice = {
+  crop: string;
+  price_usd: number;
+  unit: string;
+  trend: "up" | "down" | "stable";
+  market: string;
+  updated: string;
+};
+
+async function apiFetch(path: string, init?: RequestInit) {
+  const res = await fetch(`${apiBase()}${path}`, { ...init, credentials: "same-origin" });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `Error ${res.status}`);
+  }
+  return res;
+}
+
+function normalizeFarm(row: Record<string, unknown>): Farm {
+  return {
+    id: String(row.id),
+    name: String(row.name),
+    lat: Number(row.lat ?? -1.0547),
+    lng: Number(row.lng ?? -80.4545),
+    area_ha: Number(row.area_ha ?? row.hectares ?? 1),
+    health_status: (row.health_status ?? row.status ?? "sano") as Farm["health_status"],
+    owner_id: row.owner_id ? String(row.owner_id) : undefined,
+    created_at: row.created_at ? String(row.created_at) : undefined,
+  };
+}
+
+function normalizeCrop(row: Record<string, unknown>): Crop {
+  return {
+    id: String(row.id),
+    farm_id: String(row.farm_id ?? "f1"),
+    name: String(row.name),
+    variety: String(row.variety ?? ""),
+    growth_stage: String(row.growth_stage ?? row.stage ?? "Desarrollo"),
+    health_pct: Number(row.health_pct ?? row.health ?? 80),
+    status: (row.status ?? "sano") as Crop["status"],
+    hectares: Number(row.hectares ?? 1),
+  };
 }
 
 export async function getHealth() {
-  const res = await fetch(`${API_URL}/api/health`, { cache: "no-store" });
-  if (!res.ok) throw new Error("API no disponible");
+  const res = await apiFetch("/api/health", { cache: "no-store" });
   return res.json() as Promise<{
     status: string;
     demo_mode: boolean;
     openrouter: boolean;
     openweather: boolean;
+    supabase: boolean;
+    models: { text: string; vision: string };
   }>;
+}
+
+export async function getOnboardingStatus() {
+  const res = await apiFetch("/api/onboarding", { cache: "no-store" });
+  return res.json() as Promise<{ completed: boolean; mode?: string }>;
+}
+
+export async function submitOnboarding(data: {
+  fullName: string;
+  farmName: string;
+  province: string;
+  hectares: number;
+  crops: string[];
+}) {
+  const res = await apiFetch("/api/onboarding", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  return res.json();
+}
+
+export async function getFarms() {
+  const res = await apiFetch("/api/farms", { cache: "no-store" });
+  const rows = (await res.json()) as Record<string, unknown>[];
+  return rows.map(normalizeFarm);
+}
+
+export async function createFarm(payload: {
+  name: string;
+  lat?: number;
+  lng?: number;
+  area_ha?: number;
+}) {
+  const res = await apiFetch("/api/farms", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  return normalizeFarm(await res.json());
+}
+
+export async function getCrops(farmId?: string) {
+  const q = farmId ? `?farm_id=${encodeURIComponent(farmId)}` : "";
+  const res = await apiFetch(`/api/farms/crops${q}`, { cache: "no-store" });
+  const rows = (await res.json()) as Record<string, unknown>[];
+  return rows.map(normalizeCrop);
+}
+
+export async function createCrop(payload: {
+  farm_id: string;
+  name: string;
+  variety?: string;
+  growth_stage?: string;
+  hectares?: number;
+}) {
+  const res = await apiFetch("/api/farms/crops", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  return normalizeCrop(await res.json());
+}
+
+export async function getDashboardStats() {
+  const res = await apiFetch("/api/dashboard/stats", { cache: "no-store" });
+  return res.json() as Promise<DashboardStats>;
+}
+
+export async function getMarketPrices() {
+  const res = await apiFetch("/api/markets/prices", { cache: "no-store" });
+  return res.json() as Promise<MarketPrice[]>;
 }
 
 export async function getWeather(lat?: number, lon?: number) {
@@ -95,7 +217,7 @@ export async function getWeather(lat?: number, lon?: number) {
   if (lat != null) params.set("lat", String(lat));
   if (lon != null) params.set("lon", String(lon));
   const q = params.toString() ? `?${params}` : "";
-  const res = await fetch(`${API_URL}/api/weather${q}`, { cache: "no-store" });
+  const res = await fetch(`${apiBase()}/api/weather${q}`, { cache: "no-store" });
   if (!res.ok) throw new Error("No se pudo obtener el clima");
   return res.json() as Promise<WeatherSnapshot>;
 }
@@ -122,8 +244,9 @@ export async function diagnoseImage(file: Blob, meta?: DiagnoseMeta) {
   form.append("file", file, name);
   appendMeta(form, meta);
 
-  const res = await fetch(`${API_URL}/api/diagnose`, {
+  const res = await fetch(`${apiBase()}/api/diagnose`, {
     method: "POST",
+    credentials: "same-origin",
     body: form,
   });
   if (!res.ok) {
@@ -147,8 +270,9 @@ export async function diagnoseImageStream(
   form.append("file", file, name);
   appendMeta(form, meta);
 
-  const res = await fetch(`${API_URL}/api/diagnose/stream`, {
+  const res = await fetch(`${apiBase()}/api/diagnose/stream`, {
     method: "POST",
+    credentials: "same-origin",
     body: form,
   });
   if (!res.ok || !res.body) {
@@ -197,68 +321,19 @@ export async function diagnoseImageStream(
 }
 
 export async function getCases() {
-  const res = await fetch(`${API_URL}/api/cases`, { cache: "no-store" });
-  if (!res.ok) throw new Error("No se pudo cargar el historial");
+  const res = await apiFetch("/api/cases", { cache: "no-store" });
   return res.json() as Promise<DiagnosisResult[]>;
 }
 
-export async function getFarms() {
-  const res = await fetch(`${API_URL}/api/farms`, { cache: "no-store" });
-  if (!res.ok) throw new Error("No se pudieron cargar las fincas");
-  return res.json() as Promise<Farm[]>;
-}
-
-export async function createFarm(payload: {
-  name: string;
-  lat?: number;
-  lng?: number;
-  area_ha?: number;
-}) {
-  const res = await fetch(`${API_URL}/api/farms`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-  if (!res.ok) throw new Error("No se pudo crear la finca");
-  return res.json() as Promise<Farm>;
-}
-
-export async function getCrops(farmId?: string) {
-  const q = farmId ? `?farm_id=${encodeURIComponent(farmId)}` : "";
-  const res = await fetch(`${API_URL}/api/crops${q}`, { cache: "no-store" });
-  if (!res.ok) throw new Error("No se pudieron cargar los cultivos");
-  return res.json() as Promise<Crop[]>;
-}
-
-export async function createCrop(payload: {
-  farm_id: string;
-  name: string;
-  variety?: string;
-  growth_stage?: string;
-  hectares?: number;
-}) {
-  const res = await fetch(`${API_URL}/api/crops`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail || "No se pudo crear el cultivo");
-  }
-  return res.json() as Promise<Crop>;
-}
-
 export async function chatAssistant(message: string, history: { role: string; content: string }[] = []) {
-  const res = await fetch(`${API_URL}/api/chat`, {
+  const res = await apiFetch("/api/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ message, history, province: "Manabí" }),
   });
-  if (!res.ok) throw new Error("Error en el asistente");
   return res.json() as Promise<{ reply: string; sources: string[]; demo: boolean }>;
 }
 
 export function pdfUrl(caseId: string) {
-  return `${API_URL}/api/diagnose/${caseId}/pdf`;
+  return `${apiBase()}/api/diagnose/${caseId}/pdf`;
 }

@@ -7,6 +7,7 @@ import { AgentProgress, type AgentStep } from "@/components/scan/AgentProgress";
 import { CameraCapture, ImageDropzone } from "@/components/scan/CameraCapture";
 import {
   diagnoseImageStream,
+  pdfUrl,
   type AgentTrace,
   type DiagnosisResult,
 } from "@/lib/api";
@@ -178,7 +179,7 @@ export default function EscanearPage() {
           <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
             {error}
             <span className="block text-xs mt-1 opacity-80">
-              ¿Backend apagado? Ejecuta: <code>uvicorn app.main:app --reload --port 8000</code>
+              Verifica OPENROUTER_API_KEY y OPENROUTER_VISION_MODEL en tu entorno (Vercel o .env.local).
             </span>
           </p>
         )}
@@ -188,7 +189,7 @@ export default function EscanearPage() {
         <div className="rounded-2xl border border-forest/10 bg-white p-4 sm:p-6 space-y-4 shadow-sm animate-fade-up">
           {result.demo && (
             <p className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-900">
-              Modo demo (sin OpenRouter). Configura <code>OPENROUTER_API_KEY</code> para GPT-4o Vision.
+              Modo demo (sin OpenRouter). Configura OPENROUTER_API_KEY con modelos gratuitos (:free).
             </p>
           )}
 
@@ -240,12 +241,12 @@ export default function EscanearPage() {
 
           <div className="flex flex-wrap gap-2 pt-1">
             <a
-              href={`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/diagnose/${result.id}/pdf`}
+              href={pdfUrl(result.id)}
               className="rounded-xl border border-forest/15 bg-white px-4 py-2.5 text-sm hover:bg-mist"
               target="_blank"
               rel="noreferrer"
             >
-              Descargar PDF
+              Descargar reporte
             </a>
             <button
               type="button"

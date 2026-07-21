@@ -90,3 +90,5 @@ class HealthResponse(BaseModel):
     demo_mode: bool
     openrouter: bool
     openweather: bool
+    supabase: bool = False
+    models: dict[str, str] = Field(default_factory=dict)

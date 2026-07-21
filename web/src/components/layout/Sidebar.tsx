@@ -12,6 +12,9 @@ import {
   Bot,
   Settings,
   Sprout,
+  CloudSun,
+  TrendingUp,
+  GraduationCap,
 } from "lucide-react";
 import { AuthSlot } from "@/components/layout/AuthSlot";
 import { cn } from "@/lib/utils";
@@ -19,11 +22,14 @@ import { cn } from "@/lib/utils";
 const NAV = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/cultivos", label: "Mis Cultivos", icon: Leaf },
-  { href: "/escanear", label: "Escanear", icon: ScanLine },
+  { href: "/escanear", label: "Escanear Planta", icon: ScanLine },
   { href: "/diagnosticos", label: "Diagnósticos", icon: Stethoscope },
-  { href: "/mapa", label: "Mapa", icon: Map },
+  { href: "/mapa", label: "Mapa de Fincas", icon: Map },
+  { href: "/clima", label: "Clima y Suelo", icon: CloudSun },
+  { href: "/asistente", label: "Asistente IA", icon: Bot, badge: "Nuevo" },
   { href: "/reportes", label: "Reportes", icon: FileText },
-  { href: "/asistente", label: "Asistente IA", icon: Bot },
+  { href: "/mercados", label: "Mercados y Precios", icon: TrendingUp },
+  { href: "/capacitacion", label: "Capacitación", icon: GraduationCap },
   { href: "/configuracion", label: "Configuración", icon: Settings },
 ];
 
@@ -61,7 +67,12 @@ export function Sidebar() {
               )}
             >
               <Icon className="h-4 w-4 opacity-90" />
-              {item.label}
+              <span className="flex-1">{item.label}</span>
+              {"badge" in item && item.badge && (
+                <span className="rounded-md bg-leaf-light/20 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-leaf-light">
+                  {item.badge}
+                </span>
+              )}
             </Link>
           );
         })}
@@ -77,13 +88,7 @@ export function Sidebar() {
 
 export function MobileNav() {
   const pathname = usePathname();
-  const items = [
-    NAV[0],
-    NAV[1],
-    NAV[2],
-    NAV[3],
-    NAV[6],
-  ];
+  const items = [NAV[0], NAV[1], NAV[2], NAV[3], NAV[6]];
 
   return (
     <nav className="lg:hidden fixed bottom-0 inset-x-0 z-50 border-t border-forest/10 bg-cream/95 backdrop-blur-md pb-[env(safe-area-inset-bottom)]">

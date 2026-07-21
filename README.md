@@ -2,50 +2,31 @@
 
 **Tu agrónomo inteligente disponible 24/7.**
 
-Plataforma de **sanidad vegetal** para agricultores de Manabí: foto de hoja → detección → clima → recomendaciones → PDF → historial.
+Plataforma de **sanidad vegetal** para agricultores de Manabí: foto de hoja → detección IA → clima → recomendaciones → PDF → historial.
 
 ## Stack
 
 | Capa | Tecnología |
 |------|------------|
-| Frontend | Next.js 16, React, Tailwind CSS, Leaflet, React Query |
-| Auth | Clerk (opcional en MVP) |
-| Backend | FastAPI + agentes (Disease / Agronomist / Climate / Report) |
-| IA | OpenRouter → GPT-4o Vision |
-| Clima | OpenWeather o Open-Meteo (gratis) |
-| Datos | Supabase (schema listo en `supabase/migrations`) |
+| Frontend + API | Next.js 16 (App Router, `/api/*`) |
+| Auth | **Clerk** |
+| IA | **OpenRouter** — modelos gratuitos (`:free`) |
+| Clima | **Open-Meteo** (gratis) |
+| Datos | **Supabase** |
+| Legacy | `backend/` FastAPI (opcional, no necesario en Vercel) |
 
-## Inicio rápido
+## Despliegue en Vercel (producción)
 
-Desde la **raíz** del repo (recomendado):
+1. **Root Directory:** `web`
+2. Variables de entorno (ver `web/.env.example`):
+   - Clerk: `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`, URLs de sign-in/up
+   - Supabase: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SERVICE_ROLE_KEY`
+   - OpenRouter: `OPENROUTER_API_KEY`, `OPENROUTER_MODEL=openai/gpt-oss-20b:free`, `OPENROUTER_VISION_MODEL=google/gemma-4-31b-it:free`
+3. **No uses** `NEXT_PUBLIC_API_URL` apuntando a `:8000` — la API corre en el mismo dominio
+4. En Clerk Dashboard agrega tu dominio `*.vercel.app`
+5. Ejecuta migraciones SQL en Supabase (`supabase/migrations/`)
 
-```powershell
-# Una sola vez
-npm install
-npm --prefix web install
-
-# API (8000) + frontend (3000) juntos
-npm run dev
-```
-
-O por separado:
-
-### 1. Backend
-
-```powershell
-cd backend
-.\.venv\Scripts\Activate.ps1
-# Si faltan paquetes:
-pip install -r requirements.txt
-copy .env.example .env
-uvicorn app.main:app --reload --port 8000
-```
-
-API docs: http://localhost:8000/docs
-
-Sin `OPENROUTER_API_KEY` el sistema corre en **modo demo** (Sigatoka Negra + recomendaciones + clima real vía Open-Meteo).
-
-### 2. Frontend
+## Inicio local
 
 ```powershell
 cd web
@@ -56,42 +37,30 @@ npm run dev
 
 App: http://localhost:3000
 
-> **Nota:** `npm run dev` en la raíz del repo ya no falla: el `package.json` de Next.js vive en `web/`. Usa `npm run dev` (raíz) o `cd web; npm run dev`.
+### Supabase + OpenRouter
 
-### 3. Cámara (móvil y web)
+1. Ejecuta `001_schema.sql` y `002_rls_policies.sql` en Supabase
+2. Crea API key en [openrouter.ai](https://openrouter.ai) y ponla en `web/.env.local`
+3. Sin `OPENROUTER_API_KEY` corre en **modo demo**
 
-En **Escanear**:
+### PWA y cámara (Escanear)
 
-1. **Activar cámara** → usa la cámara trasera en el teléfono (`facingMode: environment`).
-2. **Tomar muestra** → captura JPEG y analiza.
-3. O **subir / arrastrar** archivo, o el input nativo `capture="environment"`.
-
-HTTPS o `localhost` son necesarios para `getUserMedia`.
+- Instala como PWA desde el navegador (manifest + service worker)
+- Muestras demo estilo PlantVillage en **Escanear**
+- HTTPS o `localhost` son necesarios para `getUserMedia`
 
 ## Flujo de agentes
 
-1. **Disease Detector** — visión (GPT-4o o demo)
-2. **Climate Agent** — Open-Meteo / OpenWeather
-3. **Agronomist** — diagnóstico + plan en español
-4. **Report Agent** — empaquetado + PDF
-
-## Supabase
-
-Ejecuta `supabase/migrations/001_schema.sql` en el SQL editor. Tablas: profiles, farms, plots, crops, images, detections, recommendations, weather_logs, reports, notifications.
-
-## Hackathon demo
-
-1. Abrir dashboard
-2. Ir a **Escanear** → cámara o foto
-3. Ver diagnóstico + trazabilidad de agentes
-4. Descargar PDF
-5. Preguntar al **Asistente IA**
+```
+Foto → Disease Detector (visión) → Climate Agent (Open-Meteo)
+     → Agronomist (diagnóstico + plan) → Report Agent (PDF + historial)
+```
 
 ## Estructura
 
 ```
 AgroGuardian-AI/
-  backend/app/     # FastAPI + agents
-  web/src/         # Next.js UI
-  supabase/        # SQL schema
+  web/               # Next.js UI + API routes (desplegar esto en Vercel)
+  backend/           # FastAPI legacy (opcional en local)
+  supabase/          # SQL schema + RLS
 ```

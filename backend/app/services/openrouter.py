@@ -23,6 +23,7 @@ async def chat_completion(
     settings: Settings,
     messages: list[dict[str, Any]],
     *,
+    model: str | None = None,
     temperature: float = 0.2,
     max_tokens: int = 1200,
 ) -> str:
@@ -31,7 +32,7 @@ async def chat_completion(
         raise RuntimeError("OpenRouter API key not configured")
 
     response = await client.chat.completions.create(
-        model=settings.openrouter_model,
+        model=model or settings.openrouter_model,
         messages=messages,
         temperature=temperature,
         max_tokens=max_tokens,
@@ -57,7 +58,13 @@ async def vision_analyze(
             ],
         }
     ]
-    return await chat_completion(settings, messages, temperature=0.1, max_tokens=800)
+    return await chat_completion(
+        settings,
+        messages,
+        model=settings.openrouter_vision_model,
+        temperature=0.1,
+        max_tokens=800,
+    )
 
 
 def extract_json(text: str) -> dict[str, Any]:

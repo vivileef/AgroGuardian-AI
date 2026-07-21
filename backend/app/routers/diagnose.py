@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import asyncio
 import json
@@ -132,7 +132,7 @@ async def _read_image(file: UploadFile) -> tuple[bytes, str]:
         raise HTTPException(status_code=400, detail="Debes subir una imagen (jpg/png/webp).")
     image_bytes = await file.read()
     if len(image_bytes) < 100:
-        raise HTTPException(status_code=400, detail="Imagen vacía o inválida.")
+        raise HTTPException(status_code=400, detail="Imagen vac├¡a o inv├ílida.")
     if len(image_bytes) > 12 * 1024 * 1024:
-        raise HTTPException(status_code=400, detail="Imagen demasiado grande (máx 12MB).")
+        raise HTTPException(status_code=400, detail="Imagen demasiado grande (m├íx 12MB).")
     return image_bytes, file.content_type
