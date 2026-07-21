@@ -4,6 +4,11 @@ const isPublicRoute = createRouteMatcher([
   "/",
   "/sign-in(.*)",
   "/sign-up(.*)",
+  "/onboarding(.*)",
+  "/manifest.webmanifest",
+  "/sw.js",
+  "/samples(.*)",
+  "/icons(.*)",
 ]);
 
 // API routes auth is handled inside each route handler (requireUserId)
