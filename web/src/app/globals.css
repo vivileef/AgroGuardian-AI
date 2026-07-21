@@ -1,6 +1,7 @@
 @import "tailwindcss";
 
 :root {
+  /* Light marketing defaults (landing) */
   --forest: #14281d;
   --leaf: #2d6a4f;
   --leaf-dark: #1b4332;
@@ -9,9 +10,40 @@
   --cream: #f7faf7;
   --ink: #122018;
   --sand: #d8e2d9;
+
+  --void: #05080f;
+  --navy: #0a1220;
+  --neon: #b6ff00;
+  --neon-dim: #8fcc00;
+  --neon-glow: rgba(182, 255, 0, 0.35);
+  --mint: #7dffb3;
+  --danger: #ff3b5c;
+  --warn: #ff9f1c;
+  --muted: rgba(232, 240, 255, 0.55);
+}
+
+/* App shell = dark command center (mockup) */
+.app-shell {
+  --forest: #e8f0ff;
+  --leaf: #b6ff00;
+  --leaf-dark: #8fcc00;
+  --leaf-light: #d4ff66;
+  --mist: #0a1220;
+  --cream: rgba(16, 28, 48, 0.72);
+  --ink: #e8f0ff;
+  --sand: rgba(255, 255, 255, 0.08);
+  color: var(--ink);
 }
 
 @theme inline {
+  --color-void: var(--void);
+  --color-navy: var(--navy);
+  --color-neon: var(--neon);
+  --color-neon-dim: var(--neon-dim);
+  --color-mint: var(--mint);
+  --color-danger: var(--danger);
+  --color-warn: var(--warn);
+  --color-muted: var(--muted);
   --color-forest: var(--forest);
   --color-leaf: var(--leaf);
   --color-leaf-dark: var(--leaf-dark);
@@ -21,7 +53,7 @@
   --color-ink: var(--ink);
   --color-sand: var(--sand);
   --font-sans: var(--font-body);
-  --font-display: var(--font-display);
+  --font-display: var(--font-body);
 }
 
 html,
@@ -36,7 +68,57 @@ body {
 }
 
 .font-display {
-  font-family: var(--font-display), Georgia, serif;
+  font-family: var(--font-body), system-ui, sans-serif;
+  letter-spacing: -0.02em;
+}
+
+.glass {
+  background: linear-gradient(
+    145deg,
+    rgba(22, 38, 64, 0.72) 0%,
+    rgba(12, 22, 40, 0.55) 100%
+  );
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow:
+    0 0 0 1px rgba(182, 255, 0, 0.04) inset,
+    0 12px 40px rgba(0, 0, 0, 0.35);
+}
+
+.glass-strong {
+  background: linear-gradient(
+    160deg,
+    rgba(24, 42, 70, 0.85) 0%,
+    rgba(10, 18, 32, 0.75) 100%
+  );
+  border: 1px solid rgba(182, 255, 0, 0.14);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  box-shadow:
+    0 0 24px rgba(182, 255, 0, 0.06),
+    0 16px 48px rgba(0, 0, 0, 0.45);
+}
+
+.neon-text {
+  color: var(--neon);
+  text-shadow: 0 0 18px var(--neon-glow);
+}
+
+.neon-border {
+  border-color: rgba(182, 255, 0, 0.45);
+  box-shadow: 0 0 20px rgba(182, 255, 0, 0.15);
+}
+
+.bg-field {
+  background: transparent;
+}
+
+.bg-app {
+  background-image:
+    radial-gradient(ellipse 80% 60% at 0% 0%, rgba(40, 80, 160, 0.18), transparent 50%),
+    radial-gradient(ellipse 60% 50% at 100% 0%, rgba(182, 255, 0, 0.06), transparent 45%),
+    linear-gradient(160deg, #05080f 0%, #0a1220 40%, #061018 100%);
 }
 
 @keyframes fade-up {
@@ -60,6 +142,25 @@ body {
   }
 }
 
+@keyframes radar-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes glow-breathe {
+  0%,
+  100% {
+    box-shadow: 0 0 24px rgba(182, 255, 0, 0.25), 0 0 60px rgba(182, 255, 0, 0.1);
+  }
+  50% {
+    box-shadow: 0 0 36px rgba(182, 255, 0, 0.45), 0 0 80px rgba(182, 255, 0, 0.18);
+  }
+}
+
 .animate-fade-up {
   animation: fade-up 0.55s ease-out both;
 }
@@ -68,9 +169,97 @@ body {
   animation: pulse-soft 2.2s ease-in-out infinite;
 }
 
-.bg-field {
-  background-image:
-    radial-gradient(ellipse 80% 50% at 10% -10%, rgba(45, 106, 79, 0.18), transparent),
-    radial-gradient(ellipse 60% 40% at 100% 0%, rgba(149, 213, 178, 0.25), transparent),
-    linear-gradient(180deg, #eef4ef 0%, #e4ede6 100%);
+.animate-radar {
+  animation: radar-spin 4s linear infinite;
 }
+
+.animate-glow {
+  animation: glow-breathe 3s ease-in-out infinite;
+}
+
+.app-shell ::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.app-shell ::-webkit-scrollbar-track {
+  background: transparent;
+}
+.app-shell ::-webkit-scrollbar-thumb {
+  background: rgba(182, 255, 0, 0.25);
+  border-radius: 999px;
+}
+
+/* Soften light-theme utilities inside the dark app shell */
+.app-shell input:not([type="checkbox"]):not([type="radio"]),
+.app-shell select,
+.app-shell textarea {
+  background-color: rgba(10, 18, 32, 0.9) !important;
+  color: #e8f0ff !important;
+  border-color: rgba(255, 255, 255, 0.12) !important;
+}
+.app-shell option {
+  background: #0a1220;
+  color: #e8f0ff;
+}
+.app-shell thead {
+  background: rgba(182, 255, 0, 0.12) !important;
+  color: #b6ff00 !important;
+}
+.app-shell table {
+  color: #e8f0ff;
+}
+.app-shell .bg-white {
+  background-color: rgba(16, 28, 48, 0.75) !important;
+}
+.app-shell .bg-amber-50,
+.app-shell .bg-red-50,
+.app-shell .bg-emerald-50 {
+  background-color: rgba(255, 255, 255, 0.06) !important;
+}
+.app-shell .text-amber-900,
+.app-shell .text-amber-800,
+.app-shell .text-red-700,
+.app-shell .text-red-800,
+.app-shell .text-red-900 {
+  color: #ffb4a2 !important;
+}
+.app-shell .border-amber-200,
+.app-shell .border-red-200,
+.app-shell .border-forest\/10,
+.app-shell .border-forest\/15,
+.app-shell .border-forest\/8 {
+  border-color: rgba(255, 255, 255, 0.1) !important;
+}
+.app-shell .bg-cream {
+  background: linear-gradient(
+    145deg,
+    rgba(22, 38, 64, 0.72) 0%,
+    rgba(12, 22, 40, 0.55) 100%
+  ) !important;
+  backdrop-filter: blur(12px);
+}
+.app-shell .bg-mist,
+.app-shell .bg-mist\/60,
+.app-shell .bg-mist\/70,
+.app-shell .bg-mist\/80 {
+  background-color: rgba(255, 255, 255, 0.05) !important;
+}
+.app-shell .text-ink\/60,
+.app-shell .text-ink\/55,
+.app-shell .text-ink\/50,
+.app-shell .text-ink\/45 {
+  color: rgba(232, 240, 255, 0.55) !important;
+}
+.app-shell button.bg-leaf,
+.app-shell a.bg-leaf,
+.app-shell .bg-leaf {
+  color: #05080f !important;
+}
+.app-shell .bg-forest {
+  background-color: #b6ff00 !important;
+  color: #05080f !important;
+}
+.app-shell .text-cream {
+  color: #05080f !important;
+}
+
