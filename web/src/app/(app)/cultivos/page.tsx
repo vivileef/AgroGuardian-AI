@@ -6,9 +6,9 @@ import { createCrop, createFarm, getCrops, getFarms, type Crop, type Farm } from
 import { cn } from "@/lib/utils";
 
 const statusStyle = {
-  riesgo: "bg-warn/15 text-warn border-warn/40",
-  infectado: "bg-danger/15 text-danger border-danger/40",
-  sano: "bg-mint/15 text-mint border-mint/40",
+  sano: "bg-emerald-50 text-emerald-800 border-emerald-200",
+  riesgo: "bg-amber-50 text-amber-900 border-amber-200",
+  infectado: "bg-red-50 text-red-800 border-red-200",
 };
 
 export default function CultivosPage() {

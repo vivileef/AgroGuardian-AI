@@ -9,16 +9,14 @@ const clerkKey = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
 
 const clerkAppearance = {
   variables: {
-    colorPrimary: "#b6ff00",
-    colorBackground: "#0a1220",
-    colorText: "#e8f0ff",
-    colorInputBackground: "#101c30",
-    colorInputText: "#e8f0ff",
+    colorPrimary: "#2d6a4f",
+    colorBackground: "#f7faf7",
+    colorText: "#122018",
     borderRadius: "0.75rem",
   },
   elements: {
-    formButtonPrimary: "bg-[#b6ff00] text-[#05080f] hover:bg-[#8fcc00]",
-    card: "shadow-lg border border-white/10 bg-[#101c30]",
+    formButtonPrimary: "bg-leaf hover:bg-leaf-dark",
+    card: "shadow-lg border border-forest/10",
   },
 };
 
