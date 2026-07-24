@@ -2,14 +2,16 @@
 
 import { type FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
-import { MapPinned, Plus } from "lucide-react";
+import { MapPinned, Pencil, Plus, Trash2 } from "lucide-react";
 import {
   createCrop,
   createFarm,
   createPlot,
+  deletePlot,
   getCrops,
   getFarms,
   getPlots,
+  updatePlot,
   type Crop,
   type Farm,
   type Plot,
@@ -30,6 +32,7 @@ export default function CultivosPage() {
   const [showFarm, setShowFarm] = useState(false);
   const [showCrop, setShowCrop] = useState(false);
   const [showPlot, setShowPlot] = useState(false);
+  const [editingPlotId, setEditingPlotId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   const reload = async () => {
@@ -100,6 +103,42 @@ export default function CultivosPage() {
       await reload();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onUpdatePlot = async (e: FormEvent<HTMLFormElement>, id: string) => {
+    e.preventDefault();
+    const fd = new FormData(e.currentTarget);
+    setBusy(true);
+    setError(null);
+    try {
+      await updatePlot(id, {
+        name: String(fd.get("name") || "").trim(),
+        area_ha: Number(fd.get("area_ha") || 1),
+      });
+      setEditingPlotId(null);
+      await reload();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error al editar el lote");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onDeletePlot = async (id: string, name: string) => {
+    if (!window.confirm(`¿Eliminar el lote "${name}"? Esta acción no se puede deshacer.`)) {
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      await deletePlot(id);
+      if (editingPlotId === id) setEditingPlotId(null);
+      await reload();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error al eliminar el lote");
     } finally {
       setBusy(false);
     }
@@ -299,23 +338,82 @@ export default function CultivosPage() {
         <section className="space-y-3">
           <h2 className="font-display text-xl text-forest">Lotes / parcelas</h2>
           <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-3">
-            {plots.map((p) => (
-              <article
-                key={p.id}
-                className="rounded-2xl border border-forest/10 bg-cream p-4"
-              >
-                <h3 className="font-display text-lg text-forest">{p.name}</h3>
-                <p className="text-xs text-ink/50 mt-1">
-                  {p.area_ha} ha · {farmName(p.farm_id)} · {p.health_status}
-                </p>
-                <Link
-                  href={`/mapa?lote=${encodeURIComponent(p.id)}`}
-                  className="inline-flex items-center gap-1 mt-3 text-xs text-leaf hover:underline"
+            {plots.map((p) =>
+              editingPlotId === p.id ? (
+                <form
+                  key={p.id}
+                  onSubmit={(e) => onUpdatePlot(e, p.id)}
+                  className="rounded-2xl border border-leaf/30 bg-leaf/5 p-4 space-y-3"
                 >
-                  <MapPinned className="h-3.5 w-3.5" /> Ver área en mapa
-                </Link>
-              </article>
-            ))}
+                  <Field name="name" label="Nombre del lote" required defaultValue={p.name} />
+                  <Field
+                    name="area_ha"
+                    label="Área (ha)"
+                    type="number"
+                    step="0.1"
+                    defaultValue={String(p.area_ha)}
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      disabled={busy}
+                      type="submit"
+                      className="rounded-xl bg-forest px-3 py-1.5 text-cream text-xs disabled:opacity-40"
+                    >
+                      Guardar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditingPlotId(null)}
+                      className="rounded-xl px-3 py-1.5 text-xs text-ink/60"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                <article
+                  key={p.id}
+                  className="rounded-2xl border border-forest/10 bg-cream p-4"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <h3 className="font-display text-lg text-forest">{p.name}</h3>
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingPlotId(p.id);
+                          setError(null);
+                        }}
+                        title="Editar lote"
+                        aria-label="Editar lote"
+                        className="rounded-lg p-1.5 text-ink/50 hover:bg-forest/10 hover:text-forest transition-colors"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => onDeletePlot(p.id, p.name)}
+                        title="Eliminar lote"
+                        aria-label="Eliminar lote"
+                        className="rounded-lg p-1.5 text-ink/50 hover:bg-red-50 hover:text-red-600 transition-colors disabled:opacity-40"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                  <p className="text-xs text-ink/50 mt-1">
+                    {p.area_ha} ha · {farmName(p.farm_id)} · {p.health_status}
+                  </p>
+                  <Link
+                    href={`/mapa?lote=${encodeURIComponent(p.id)}`}
+                    className="inline-flex items-center gap-1 mt-3 text-xs text-leaf hover:underline"
+                  >
+                    <MapPinned className="h-3.5 w-3.5" /> Ver área en mapa
+                  </Link>
+                </article>
+              )
+            )}
           </div>
         </section>
       )}

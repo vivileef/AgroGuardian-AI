@@ -361,6 +361,77 @@ export async function createPlot(
   };
 }
 
+async function assertPlotOwner(client: SupabaseClient, userId: string, plotId: string) {
+  const farms = await listFarms(client, userId);
+  const farmIds = new Set(farms.map((f) => f.id));
+  const { data, error } = await client
+    .from("plots")
+    .select("id,farm_id")
+    .eq("id", plotId)
+    .single();
+  if (error || !data) throw new Error("Lote no encontrado");
+  if (!farmIds.has(data.farm_id as string)) {
+    throw new Error("El lote no pertenece al usuario");
+  }
+}
+
+export async function updatePlot(
+  client: SupabaseClient,
+  userId: string,
+  plotId: string,
+  patch: { name?: string; area_ha?: number; lat?: number; lng?: number }
+) {
+  await assertPlotOwner(client, userId, plotId);
+
+  const full: Record<string, unknown> = {};
+  if (patch.name != null) full.name = patch.name;
+  if (patch.area_ha != null) full.area_ha = patch.area_ha;
+  if (patch.lat != null) full.lat = patch.lat;
+  if (patch.lng != null) full.lng = patch.lng;
+
+  let { data, error } = await client
+    .from("plots")
+    .update(full)
+    .eq("id", plotId)
+    .select("*")
+    .single();
+
+  // DB may not have migration 003 columns yet (lat/lng)
+  if (error && isMissingColumnError(error)) {
+    const base: Record<string, unknown> = {};
+    if (patch.name != null) base.name = patch.name;
+    if (patch.area_ha != null) base.area_ha = patch.area_ha;
+    const retry = await client
+      .from("plots")
+      .update(base)
+      .eq("id", plotId)
+      .select("*")
+      .single();
+    data = retry.data;
+    error = retry.error;
+  }
+
+  if (error || !data) {
+    throw new Error(formatDbError(error) || "No se pudo actualizar el lote");
+  }
+
+  return {
+    id: data.id as string,
+    farm_id: data.farm_id as string,
+    name: data.name as string,
+    area_ha: Number(data.area_ha ?? 1),
+    lat: (data.lat as number | null) ?? null,
+    lng: (data.lng as number | null) ?? null,
+    health_status: (data.health_status as string) ?? "sano",
+  };
+}
+
+export async function deletePlot(client: SupabaseClient, userId: string, plotId: string) {
+  await assertPlotOwner(client, userId, plotId);
+  const { error } = await client.from("plots").delete().eq("id", plotId);
+  if (error) throw new Error(formatDbError(error) || "No se pudo eliminar el lote");
+}
+
 function isMissingColumnError(error: unknown) {
   const msg = String(
     (error as { message?: string })?.message ??

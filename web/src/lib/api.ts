@@ -323,6 +323,25 @@ export async function createPlot(payload: {
   return res.json() as Promise<Plot>;
 }
 
+export async function updatePlot(
+  id: string,
+  payload: { name?: string; area_ha?: number; lat?: number; lng?: number }
+) {
+  const res = await apiFetch(`/api/plots/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  return res.json() as Promise<Plot>;
+}
+
+export async function deletePlot(id: string) {
+  const res = await apiFetch(`/api/plots/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+  });
+  return res.json() as Promise<{ ok: boolean }>;
+}
+
 export type Lesson = {
   id: string;
   slug: string;
