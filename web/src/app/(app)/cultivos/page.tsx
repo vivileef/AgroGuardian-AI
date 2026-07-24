@@ -16,6 +16,7 @@ import {
   type Farm,
   type Plot,
 } from "@/lib/api";
+import { offsetPlotCenter, plotColor } from "@/lib/plot-layout";
 import { cn } from "@/lib/utils";
 
 const statusStyle = {
@@ -92,12 +93,21 @@ export default function CultivosPage() {
     const fd = new FormData(e.currentTarget);
     setBusy(true);
     try {
+      const farmId = String(fd.get("farm_id"));
+      const farm = farms.find((f) => f.id === farmId) ?? farms[0];
+      const siblings = plots.filter((p) => p.farm_id === farmId);
+      const auto = offsetPlotCenter(
+        Number(farm?.lat ?? -1.0547),
+        Number(farm?.lng ?? -80.4545),
+        siblings.length,
+        Number(fd.get("area_ha") || 1)
+      );
       await createPlot({
-        farm_id: String(fd.get("farm_id")),
+        farm_id: farmId,
         name: String(fd.get("name")),
         area_ha: Number(fd.get("area_ha") || 1),
-        lat: Number(fd.get("lat") || farms[0]?.lat || -1.0547),
-        lng: Number(fd.get("lng") || farms[0]?.lng || -80.4545),
+        lat: Number(fd.get("lat") || auto.lat),
+        lng: Number(fd.get("lng") || auto.lng),
       });
       setShowPlot(false);
       await reload();
@@ -376,8 +386,23 @@ export default function CultivosPage() {
                   className="rounded-2xl border border-forest/10 bg-cream p-4"
                 >
                   <div className="flex items-start justify-between gap-2">
-                    <h3 className="font-display text-lg text-forest">{p.name}</h3>
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-start gap-2 min-w-0">
+                      <span
+                        className="mt-1.5 h-3 w-3 shrink-0 rounded-sm border border-black/10"
+                        style={{
+                          background: plotColor(
+                            plots.filter((x) => x.farm_id === p.farm_id).findIndex((x) => x.id === p.id)
+                          ),
+                        }}
+                      />
+                      <div className="min-w-0">
+                        <h3 className="font-display text-lg text-forest">{p.name}</h3>
+                        <p className="text-xs text-ink/50 mt-0.5">
+                          {p.area_ha} ha · {farmName(p.farm_id)} · {p.health_status}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
                       <button
                         type="button"
                         onClick={() => {
@@ -402,9 +427,6 @@ export default function CultivosPage() {
                       </button>
                     </div>
                   </div>
-                  <p className="text-xs text-ink/50 mt-1">
-                    {p.area_ha} ha · {farmName(p.farm_id)} · {p.health_status}
-                  </p>
                   <Link
                     href={`/mapa?lote=${encodeURIComponent(p.id)}`}
                     className="inline-flex items-center gap-1 mt-3 text-xs text-leaf hover:underline"

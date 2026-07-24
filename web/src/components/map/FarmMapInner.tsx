@@ -7,6 +7,7 @@ import {
   CircleMarker,
   Popup,
   Polygon,
+  Tooltip,
   useMap,
 } from "react-leaflet";
 import type { LatLngBoundsExpression, LatLngExpression, LatLngTuple } from "leaflet";
@@ -15,14 +16,17 @@ import "leaflet/dist/leaflet.css";
 export type MapPin = {
   id: string;
   name: string;
+  label?: string;
   lat: number;
   lng: number;
   status: "sano" | "riesgo" | "infectado";
   area_ha?: number;
   kind?: "farm" | "plot";
+  color?: string;
+  farm_name?: string;
 };
 
-const COLORS = {
+const STATUS_COLORS = {
   sano: "#2D6A4F",
   riesgo: "#D4A017",
   infectado: "#C1121F",
@@ -110,73 +114,94 @@ export default function FarmMapInner({
         />
         <FocusSelected selected={selected} positions={selectedPoly} />
 
-        {/* Selected lot/farm area as a clear filled square */}
-        {selected && selectedPoly && (
-          <Polygon
-            positions={selectedPoly}
-            pathOptions={{
-              color: "#1B4332",
-              weight: 4,
-              fillColor: COLORS[selected.status] ?? "#2D6A4F",
-              fillOpacity: 0.35,
-            }}
-          >
-            <Popup>
-              <strong>{selected.name}</strong>
-              <br />
-              Área aproximada: {Number(selected.area_ha) > 0 ? selected.area_ha : 1} ha
-              <br />
-              Estado: {selected.status}
-            </Popup>
-          </Polygon>
-        )}
-
         {farms.map((f) => {
           const isSelected = f.id === selectedId;
-          const color = COLORS[f.status] ?? "#2D6A4F";
           const ha = Number(f.area_ha) > 0 ? Number(f.area_ha) : f.kind === "plot" ? 1 : 0;
+          const fill =
+            f.color ??
+            (f.kind === "farm" ? STATUS_COLORS[f.status] : STATUS_COLORS[f.status]) ??
+            "#2D6A4F";
+          const showArea = f.kind === "plot" || (f.kind === "farm" && isSelected) || isSelected;
 
           return (
             <Fragment key={f.id}>
-              {/* Light outline for other plots so areas are visible even without selection */}
-              {!isSelected && f.kind === "plot" && ha > 0 && (
+              {showArea && ha > 0 && (
                 <Polygon
                   positions={areaPolygon(f.lat, f.lng, ha)}
                   pathOptions={{
-                    color,
-                    weight: 1.5,
-                    fillColor: color,
-                    fillOpacity: 0.12,
-                    dashArray: "4 4",
+                    color: isSelected ? "#081c15" : fill,
+                    weight: isSelected ? 4 : f.kind === "plot" ? 2.5 : 2,
+                    fillColor: fill,
+                    fillOpacity: isSelected ? 0.45 : f.kind === "plot" ? 0.28 : 0.18,
+                    dashArray: isSelected || f.kind === "plot" ? undefined : "4 4",
                   }}
-                />
+                >
+                  <Tooltip
+                    permanent={f.kind === "plot"}
+                    direction="center"
+                    opacity={0.95}
+                    className="ag-plot-label"
+                  >
+                    <span style={{ fontWeight: 600, fontSize: 11 }}>
+                      {f.kind === "plot" ? f.name : f.label ?? f.name}
+                      {ha > 0 ? ` · ${ha} ha` : ""}
+                    </span>
+                  </Tooltip>
+                  <Popup>
+                    <strong>{f.label ?? f.name}</strong>
+                    <br />
+                    {f.farm_name ? (
+                      <>
+                        Finca: {f.farm_name}
+                        <br />
+                      </>
+                    ) : null}
+                    {ha > 0 ? (
+                      <>
+                        Área: {ha} ha
+                        <br />
+                      </>
+                    ) : null}
+                    Estado: {f.status}
+                  </Popup>
+                </Polygon>
               )}
               <CircleMarker
                 center={[f.lat, f.lng]}
-                radius={isSelected ? 16 : 10}
+                radius={isSelected ? 14 : f.kind === "plot" ? 8 : 10}
                 pathOptions={{
-                  color: isSelected ? "#081c15" : color,
-                  fillColor: color,
-                  fillOpacity: isSelected ? 1 : 0.75,
+                  color: isSelected ? "#081c15" : fill,
+                  fillColor: fill,
+                  fillOpacity: isSelected ? 1 : 0.85,
                   weight: isSelected ? 3 : 2,
                 }}
               >
-                <Popup>
-                  <strong>{f.name}</strong>
-                  <br />
-                  {ha > 0 ? (
-                    <>
-                      Área: {ha} ha
-                      <br />
-                    </>
-                  ) : null}
-                  Estado: {f.status}
-                </Popup>
+                {!showArea && (
+                  <Popup>
+                    <strong>{f.label ?? f.name}</strong>
+                    <br />
+                    Estado: {f.status}
+                  </Popup>
+                )}
               </CircleMarker>
             </Fragment>
           );
         })}
       </MapContainer>
+      <style>{`
+        .leaflet-tooltip.ag-plot-label {
+          background: rgba(255, 255, 255, 0.92);
+          border: 1px solid rgba(27, 67, 50, 0.25);
+          border-radius: 6px;
+          box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+          padding: 2px 6px;
+          color: #1b4332;
+          white-space: nowrap;
+        }
+        .leaflet-tooltip.ag-plot-label::before {
+          display: none;
+        }
+      `}</style>
     </div>
   );
 }

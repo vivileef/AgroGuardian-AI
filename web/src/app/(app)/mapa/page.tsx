@@ -10,6 +10,11 @@ import {
   type Farm,
   type Plot,
 } from "@/lib/api";
+import {
+  nearlySamePoint,
+  offsetPlotCenter,
+  plotColor,
+} from "@/lib/plot-layout";
 import { cn } from "@/lib/utils";
 
 export default function MapaPage() {
@@ -46,52 +51,103 @@ function MapaInner() {
 
   const pins = useMemo(() => {
     const farmById = new Map(farms.map((f) => [f.id, f]));
+
+    // Group plots by farm to spread ones that share the same point
+    const byFarm = new Map<string, Plot[]>();
+    for (const p of plots) {
+      const list = byFarm.get(p.farm_id) ?? [];
+      list.push(p);
+      byFarm.set(p.farm_id, list);
+    }
+
+    const plotPins = plots.map((p) => {
+      const farm = farmById.get(p.farm_id);
+      const farmLat = Number(farm?.lat ?? -1.0547);
+      const farmLng = Number(farm?.lng ?? -80.4545);
+      const siblings = byFarm.get(p.farm_id) ?? [];
+      const index = siblings.findIndex((s) => s.id === p.id);
+      const ha = Number(p.area_ha) > 0 ? Number(p.area_ha) : 1;
+
+      const rawLat =
+        p.lat != null && Number.isFinite(Number(p.lat)) ? Number(p.lat) : farmLat;
+      const rawLng =
+        p.lng != null && Number.isFinite(Number(p.lng)) ? Number(p.lng) : farmLng;
+
+      // If this lot sits on the farm center (or stacked with siblings), fan them out
+      const stacked =
+        nearlySamePoint({ lat: rawLat, lng: rawLng }, { lat: farmLat, lng: farmLng }) ||
+        siblings.some((s, i) => {
+          if (i >= index) return false;
+          const sLat =
+            s.lat != null && Number.isFinite(Number(s.lat)) ? Number(s.lat) : farmLat;
+          const sLng =
+            s.lng != null && Number.isFinite(Number(s.lng)) ? Number(s.lng) : farmLng;
+          return nearlySamePoint({ lat: rawLat, lng: rawLng }, { lat: sLat, lng: sLng });
+        });
+
+      const placed = stacked
+        ? offsetPlotCenter(farmLat, farmLng, Math.max(index, 0), ha)
+        : { lat: rawLat, lng: rawLng };
+
+      return {
+        id: p.id,
+        name: p.name,
+        label: `Lote: ${p.name}`,
+        lat: placed.lat,
+        lng: placed.lng,
+        status: (p.health_status as "sano" | "riesgo" | "infectado") || "sano",
+        area_ha: ha,
+        kind: "plot" as const,
+        color: plotColor(Math.max(index, 0)),
+        farm_name: farm?.name,
+      };
+    });
+
     return [
       ...farms.map((f) => ({
         id: f.id,
         name: f.name,
+        label: f.name,
         lat: Number(f.lat),
         lng: Number(f.lng),
         status: f.health_status,
         area_ha: Number(f.area_ha) > 0 ? Number(f.area_ha) : 1,
         kind: "farm" as const,
+        color: undefined as string | undefined,
+        farm_name: undefined as string | undefined,
       })),
-      ...plots.map((p) => {
-        const farm = farmById.get(p.farm_id);
-        const lat =
-          p.lat != null && Number.isFinite(Number(p.lat))
-            ? Number(p.lat)
-            : Number(farm?.lat ?? -1.0547);
-        const lng =
-          p.lng != null && Number.isFinite(Number(p.lng))
-            ? Number(p.lng)
-            : Number(farm?.lng ?? -80.4545);
-        return {
-          id: p.id,
-          name: `Lote: ${p.name}`,
-          lat,
-          lng,
-          status: (p.health_status as "sano" | "riesgo" | "infectado") || "sano",
-          area_ha: Number(p.area_ha) > 0 ? Number(p.area_ha) : 1,
-          kind: "plot" as const,
-        };
-      }),
+      ...plotPins,
     ];
   }, [farms, plots]);
 
   const selected = pins.find((p) => p.id === selectedId) ?? null;
+
+  const nextPlotCoords = (farmId: string) => {
+    const farm = farms.find((f) => f.id === farmId) ?? farms[0];
+    const siblings = plots.filter((p) => p.farm_id === (farm?.id ?? farmId));
+    const base = offsetPlotCenter(
+      Number(farm?.lat ?? -1.0547),
+      Number(farm?.lng ?? -80.4545),
+      siblings.length,
+      1
+    );
+    return base;
+  };
 
   const onCreatePlot = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
     setBusy(true);
     try {
+      const farmId = String(fd.get("farm_id"));
+      const area = Number(fd.get("area_ha") || 1);
+      const auto = nextPlotCoords(farmId);
       const created = await createPlot({
-        farm_id: String(fd.get("farm_id")),
+        farm_id: farmId,
         name: String(fd.get("name")),
-        area_ha: Number(fd.get("area_ha") || 1),
-        lat: Number(fd.get("lat") || -1.0547),
-        lng: Number(fd.get("lng") || -80.4545),
+        area_ha: area,
+        lat: Number(fd.get("lat") || auto.lat),
+        lng: Number(fd.get("lng") || auto.lng),
       });
       setShowPlot(false);
       await reload();
@@ -110,7 +166,7 @@ function MapaInner() {
           <p className="text-xs uppercase tracking-[0.2em] text-leaf">Geolocalización</p>
           <h1 className="font-display text-3xl text-forest mt-1">Mapa de fincas y parcelas</h1>
           <p className="text-sm text-ink/60 mt-1">
-            Selecciona un lote o finca para ver su área aproximada dibujada en el mapa.
+            Cada lote se dibuja en su propio cuadro con color distinto. Selecciona uno para enfocarlo.
           </p>
         </div>
         <button
@@ -213,9 +269,20 @@ function MapaInner() {
         <div className="space-y-2">
           {selected && (
             <p className="text-xs text-ink/55 rounded-xl border border-leaf/20 bg-leaf/5 px-3 py-2">
-              Seleccionado: <strong className="text-forest">{selected.name}</strong>
+              Seleccionado: <strong className="text-forest">{selected.label ?? selected.name}</strong>
               {selected.area_ha != null && (
-                <> · área aproximada <strong>{selected.area_ha} ha</strong> (cuadro en el mapa)</>
+                <> · área aproximada <strong>{selected.area_ha} ha</strong></>
+              )}
+              {selected.kind === "plot" && selected.color && (
+                <>
+                  {" "}
+                  ·{" "}
+                  <span
+                    className="inline-block h-2.5 w-2.5 rounded-sm align-middle"
+                    style={{ background: selected.color }}
+                  />{" "}
+                  color del lote
+                </>
               )}
             </p>
           )}
@@ -253,25 +320,35 @@ function MapaInner() {
               Sin lotes. Usa «+ Agregar lote».
             </li>
           )}
-          {plots.map((p) => (
-            <li key={p.id}>
-              <button
-                type="button"
-                onClick={() => setSelectedId(p.id)}
-                className={cn(
-                  "w-full text-left rounded-2xl border px-4 py-3 text-sm transition-colors",
-                  selectedId === p.id
-                    ? "border-leaf bg-leaf/10 ring-1 ring-leaf/30"
-                    : "border-forest/10 bg-cream hover:border-leaf/30"
-                )}
-              >
-                <p className="font-medium text-forest">{p.name}</p>
-                <p className="text-xs text-ink/50 mt-0.5">
-                  {p.area_ha} ha · {p.health_status}
-                </p>
-              </button>
-            </li>
-          ))}
+          {plots.map((p, i) => {
+            const pin = pins.find((x) => x.id === p.id);
+            const farm = farms.find((f) => f.id === p.farm_id);
+            return (
+              <li key={p.id}>
+                <button
+                  type="button"
+                  onClick={() => setSelectedId(p.id)}
+                  className={cn(
+                    "w-full text-left rounded-2xl border px-4 py-3 text-sm transition-colors",
+                    selectedId === p.id
+                      ? "border-leaf bg-leaf/10 ring-1 ring-leaf/30"
+                      : "border-forest/10 bg-cream hover:border-leaf/30"
+                  )}
+                >
+                  <div className="flex items-center gap-2">
+                    <span
+                      className="h-3 w-3 shrink-0 rounded-sm border border-black/10"
+                      style={{ background: pin?.color ?? plotColor(i) }}
+                    />
+                    <p className="font-medium text-forest">{p.name}</p>
+                  </div>
+                  <p className="text-xs text-ink/50 mt-0.5 pl-5">
+                    {p.area_ha} ha · {farm?.name ?? "Finca"} · {p.health_status}
+                  </p>
+                </button>
+              </li>
+            );
+          })}
         </ul>
       </div>
     </div>
