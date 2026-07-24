@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { requireUserId } from "@/lib/server/auth";
 import { getConfig } from "@/lib/server/config";
 import { getCaseStore } from "@/lib/server/demo-data";
-import { buildReportHtml } from "@/lib/server/report";
+import { buildReportPdf } from "@/lib/server/report";
 import { getAdminClient, getDetection } from "@/lib/server/supabase-admin";
 
 export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> }) {
@@ -26,11 +26,12 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
     return NextResponse.json({ detail: "Caso no encontrado." }, { status: 404 });
   }
 
-  const html = buildReportHtml(result);
-  return new NextResponse(html, {
+  const pdf = await buildReportPdf(result);
+  return new NextResponse(Buffer.from(pdf), {
     headers: {
-      "Content-Type": "text/html; charset=utf-8",
-      "Content-Disposition": `attachment; filename="agroguardian-${id.slice(0, 8)}.html"`,
+      "Content-Type": "application/pdf",
+      "Content-Disposition": `attachment; filename="agroguardian-${id.slice(0, 8)}.pdf"`,
+      "Cache-Control": "no-store",
     },
   });
 }
