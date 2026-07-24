@@ -3,6 +3,7 @@
 import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
 import { getFarms, type Farm } from "@/lib/api";
+import type { MapPin } from "./FarmMapInner";
 
 const MapInner = dynamic(() => import("./FarmMapInner"), {
   ssr: false,
@@ -13,20 +14,16 @@ const MapInner = dynamic(() => import("./FarmMapInner"), {
   ),
 });
 
-export type MapFarm = {
-  id: string;
-  name: string;
-  lat: number;
-  lng: number;
-  status: "sano" | "riesgo" | "infectado";
-};
+export type MapFarm = MapPin;
 
 export function FarmMap({
   height = 320,
   farms: farmsProp,
+  selectedId = null,
 }: {
   height?: number;
   farms?: MapFarm[];
+  selectedId?: string | null;
 }) {
   const [fetched, setFetched] = useState<MapFarm[]>([]);
 
@@ -43,6 +40,8 @@ export function FarmMap({
             lat: f.lat,
             lng: f.lng,
             status: f.health_status,
+            area_ha: f.area_ha,
+            kind: "farm" as const,
           }))
         );
       })
@@ -54,5 +53,11 @@ export function FarmMap({
     };
   }, [farmsProp]);
 
-  return <MapInner farms={farmsProp ?? fetched} height={height} />;
+  return (
+    <MapInner
+      farms={farmsProp ?? fetched}
+      height={height}
+      selectedId={selectedId}
+    />
+  );
 }

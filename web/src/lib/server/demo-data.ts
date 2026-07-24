@@ -19,6 +19,15 @@ const g = globalThis as unknown as {
   agroCases?: Map<string, DiagnosisResult>;
   agroFarms?: typeof DEMO_FARMS;
   agroCrops?: typeof DEMO_CROPS;
+  agroPlots?: {
+    id: string;
+    farm_id: string;
+    name: string;
+    area_ha: number;
+    lat: number | null;
+    lng: number | null;
+    health_status: string;
+  }[];
 };
 
 export function getFarmStore() {
@@ -29,6 +38,11 @@ export function getFarmStore() {
 export function getCropStore() {
   if (!g.agroCrops) g.agroCrops = [...DEMO_CROPS];
   return g.agroCrops;
+}
+
+export function getPlotStore() {
+  if (!g.agroPlots) g.agroPlots = [];
+  return g.agroPlots;
 }
 
 export function demoDashboard() {

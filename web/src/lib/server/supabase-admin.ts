@@ -321,27 +321,68 @@ export async function createPlot(
   const farm = farms.find((f) => f.id === input.farm_id);
   if (!farm) throw new Error("La finca no pertenece al usuario");
 
-  const payload: Record<string, unknown> = {
+  const lat = input.lat ?? farm.lat;
+  const lng = input.lng ?? farm.lng;
+
+  const basePayload = {
     farm_id: input.farm_id,
     name: input.name,
     area_ha: input.area_ha ?? 1,
   };
-  if (input.lat != null) payload.lat = input.lat;
-  else payload.lat = farm.lat;
-  if (input.lng != null) payload.lng = input.lng;
-  else payload.lng = farm.lng;
 
-  const { data, error } = await client.from("plots").insert(payload).select("*").single();
-  if (error || !data) throw error ?? new Error("No se pudo crear la parcela");
+  const withCoords = {
+    ...basePayload,
+    lat,
+    lng,
+    health_status: "sano",
+  };
+
+  let { data, error } = await client.from("plots").insert(withCoords).select("*").single();
+
+  // DB may not have migration 003 columns yet (lat/lng/health_status)
+  if (error && isMissingColumnError(error)) {
+    const retry = await client.from("plots").insert(basePayload).select("*").single();
+    data = retry.data;
+    error = retry.error;
+  }
+
+  if (error || !data) {
+    throw new Error(formatDbError(error) || "No se pudo crear la parcela");
+  }
+
   return {
     id: data.id as string,
     farm_id: data.farm_id as string,
     name: data.name as string,
     area_ha: Number(data.area_ha ?? 1),
-    lat: (data.lat as number | null) ?? farm.lat,
-    lng: (data.lng as number | null) ?? farm.lng,
+    lat: (data.lat as number | null) ?? lat ?? null,
+    lng: (data.lng as number | null) ?? lng ?? null,
     health_status: (data.health_status as string) ?? "sano",
   };
+}
+
+function isMissingColumnError(error: unknown) {
+  const msg = String(
+    (error as { message?: string })?.message ??
+      (error as { details?: string })?.details ??
+      error ??
+      ""
+  ).toLowerCase();
+  return (
+    msg.includes("column") ||
+    msg.includes("lat") ||
+    msg.includes("lng") ||
+    msg.includes("health_status") ||
+    msg.includes("schema cache") ||
+    (error as { code?: string })?.code === "PGRST204"
+  );
+}
+
+function formatDbError(error: unknown) {
+  if (!error) return null;
+  if (error instanceof Error) return error.message;
+  const e = error as { message?: string; details?: string; hint?: string; code?: string };
+  return [e.message, e.details, e.hint].filter(Boolean).join(" — ") || e.code || null;
 }
 
 export async function dashboardStats(client: SupabaseClient, userId: string) {
