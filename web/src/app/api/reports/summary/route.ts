@@ -24,6 +24,7 @@ export async function GET(req: NextRequest) {
   }
 
   const cases = [...getCaseStore().values()].filter((c) => {
+    if (c.demo) return false;
     const t = new Date(c.created_at).getTime();
     return t >= Date.now() - days * 86400000;
   });

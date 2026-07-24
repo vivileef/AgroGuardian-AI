@@ -845,16 +845,32 @@ export async function listMarketPrices(client: SupabaseClient) {
   }));
 }
 
+export async function deleteDetection(client: SupabaseClient, userId: string, id: string) {
+  const existing = await getDetection(client, userId, id);
+  if (!existing) throw new Error("Diagnóstico no encontrado");
+  const { error } = await client.from("detections").delete().eq("id", id).eq("owner_id", userId);
+  if (error) throw new Error(formatDbError(error) || "No se pudo eliminar el diagnóstico");
+}
+
 export async function periodReportSummary(client: SupabaseClient, userId: string, days = 30) {
   const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
-  const { data: detections } = await client
-    .from("detections")
-    .select("id,disease,risk_level,created_at,rationale")
-    .eq("owner_id", userId)
-    .gte("created_at", since)
-    .order("created_at", { ascending: false });
+  // Prefer full hydrate so we can exclude demo cases
+  const all = await listDetections(client, userId);
+  const detections = all.filter((c) => {
+    if (c.demo) return false;
+    const det = c.agent_trace?.find((t) => t.agent === "Disease Detector");
+    if (det?.status === "demo") return false;
+    if (
+      det?.status === "fallback-demo" &&
+      c.detection.disease === "Sigatoka Negra" &&
+      Math.round(c.detection.confidence * 100) === 94
+    ) {
+      return false;
+    }
+    return new Date(c.created_at).getTime() >= new Date(since).getTime();
+  });
 
-  const ids = (detections ?? []).map((d) => d.id as string);
+  const ids = detections.map((d) => d.id);
   let completed = 0;
   let pending = 0;
   if (ids.length) {
@@ -869,22 +885,22 @@ export async function periodReportSummary(client: SupabaseClient, userId: string
   }
 
   const byDisease: Record<string, number> = {};
-  for (const d of detections ?? []) {
-    const key = d.disease as string;
+  for (const d of detections) {
+    const key = d.detection.disease;
     byDisease[key] = (byDisease[key] ?? 0) + 1;
   }
 
   return {
     period_days: days,
-    scans: detections?.length ?? 0,
+    scans: detections.length,
     treatments_done: completed,
     treatments_pending: pending,
     by_disease: byDisease,
-    recent: (detections ?? []).slice(0, 10).map((d) => ({
-      id: d.id as string,
-      disease: d.disease as string,
-      risk_level: d.risk_level as string,
-      created_at: d.created_at as string,
+    recent: detections.slice(0, 10).map((d) => ({
+      id: d.id,
+      disease: d.detection.disease,
+      risk_level: d.detection.risk_level,
+      created_at: d.created_at,
     })),
   };
 }

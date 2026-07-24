@@ -268,23 +268,22 @@ function MapaInner() {
       ) : (
         <div className="space-y-2">
           {selected && (
-            <p className="text-xs text-ink/55 rounded-xl border border-leaf/20 bg-leaf/5 px-3 py-2">
-              Seleccionado: <strong className="text-forest">{selected.label ?? selected.name}</strong>
-              {selected.area_ha != null && (
-                <> · área aproximada <strong>{selected.area_ha} ha</strong></>
-              )}
-              {selected.kind === "plot" && selected.color && (
-                <>
-                  {" "}
-                  ·{" "}
-                  <span
-                    className="inline-block h-2.5 w-2.5 rounded-sm align-middle"
-                    style={{ background: selected.color }}
-                  />{" "}
-                  color del lote
-                </>
-              )}
-            </p>
+            <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-ink/55 rounded-xl border border-leaf/20 bg-leaf/5 px-3 py-2">
+              <p>
+                Solo se muestra:{" "}
+                <strong className="text-forest">{selected.label ?? selected.name}</strong>
+                {selected.area_ha != null && (
+                  <> · <strong>{selected.area_ha} ha</strong></>
+                )}
+              </p>
+              <button
+                type="button"
+                onClick={() => setSelectedId(null)}
+                className="rounded-lg border border-forest/15 bg-white px-2.5 py-1 text-xs text-forest hover:bg-mist"
+              >
+                Ver todos
+              </button>
+            </div>
           )}
           <FarmMap farms={pins} height={480} selectedId={selectedId} />
         </div>

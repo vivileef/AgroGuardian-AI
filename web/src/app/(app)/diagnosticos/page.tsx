@@ -4,18 +4,36 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
-import { getCases, pdfUrl, type DiagnosisResult } from "@/lib/api";
+import { deleteCase, getCases, pdfUrl, type DiagnosisResult } from "@/lib/api";
 import { cn, pct, riskColor } from "@/lib/utils";
 
 export default function DiagnosticosPage() {
   const [cases, setCases] = useState<DiagnosisResult[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
 
-  useEffect(() => {
+  const reload = () =>
     getCases()
       .then(setCases)
       .catch((e) => setError(e.message));
+
+  useEffect(() => {
+    reload();
   }, []);
+
+  const onDelete = async (id: string, disease: string) => {
+    if (!window.confirm(`¿Eliminar el diagnóstico «${disease}»?`)) return;
+    setBusyId(id);
+    setError(null);
+    try {
+      await deleteCase(id);
+      setCases((prev) => prev.filter((c) => c.id !== id));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo eliminar");
+    } finally {
+      setBusyId(null);
+    }
+  };
 
   return (
     <div className="space-y-6 animate-fade-up">
@@ -23,13 +41,13 @@ export default function DiagnosticosPage() {
         <p className="text-xs uppercase tracking-[0.2em] text-leaf">Historial</p>
         <h1 className="font-display text-3xl text-forest mt-1">Diagnósticos</h1>
         <p className="text-sm text-ink/60 mt-1">
-          Casos guardados en tu cuenta. Ábrelos para ver el plan y marcar tratamientos.
+          Solo casos que escaneaste tú. Puedes regenerarlos o eliminarlos.
         </p>
       </header>
 
       {error && (
         <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
-          {error}. Escanea una planta para crear el primer caso.
+          {error}
         </p>
       )}
 
@@ -90,6 +108,14 @@ export default function DiagnosticosPage() {
                     >
                       PDF
                     </a>
+                    <button
+                      type="button"
+                      disabled={busyId === c.id}
+                      onClick={() => onDelete(c.id, c.detection.disease)}
+                      className="text-red-600/80 hover:underline text-xs font-medium disabled:opacity-40"
+                    >
+                      Eliminar
+                    </button>
                   </td>
                 </tr>
               ))}

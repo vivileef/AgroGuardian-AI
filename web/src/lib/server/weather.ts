@@ -24,6 +24,32 @@ function weatherCodeLabel(code: number) {
   return map[code] ?? "Condición variable";
 }
 
+async function resolveLocationLabel(lat: number, lon: number): Promise<string> {
+  try {
+    const url = new URL("https://nominatim.openstreetmap.org/reverse");
+    url.searchParams.set("lat", String(lat));
+    url.searchParams.set("lon", String(lon));
+    url.searchParams.set("format", "json");
+    url.searchParams.set("zoom", "10");
+    url.searchParams.set("accept-language", "es");
+    const res = await fetch(url.toString(), {
+      headers: { "User-Agent": "AgroGuardianAI/1.0 (farm climate)" },
+      next: { revalidate: 86400 },
+    });
+    if (!res.ok) throw new Error("geocode");
+    const data = await res.json();
+    const a = data?.address ?? {};
+    const city = a.city || a.town || a.village || a.county || a.municipality || "";
+    const region = a.state || a.region || "";
+    const country = a.country || "Ecuador";
+    const parts = [city, region, country].filter(Boolean);
+    if (parts.length) return parts.join(", ");
+  } catch {
+    /* fall through */
+  }
+  return `Tu ubicacion (${lat.toFixed(3)}, ${lon.toFixed(3)})`;
+}
+
 export async function fetchWeather(
   cfg: AppConfig,
   lat?: number | null,
@@ -31,6 +57,7 @@ export async function fetchWeather(
 ): Promise<WeatherSnapshot> {
   const la = lat ?? cfg.defaultLat;
   const lo = lon ?? cfg.defaultLon;
+  const usedDefault = lat == null || lon == null;
   const url = new URL("https://api.open-meteo.com/v1/forecast");
   url.searchParams.set("latitude", String(la));
   url.searchParams.set("longitude", String(lo));
@@ -48,6 +75,9 @@ export async function fetchWeather(
   const humidity = Number(c.relative_humidity_2m ?? 80);
   const rain = Number(c.precipitation ?? 0);
   const wind = Number(c.wind_speed_10m ?? 5);
+  const location = usedDefault
+    ? "Portoviejo, Manabí (predeterminado)"
+    : await resolveLocationLabel(la, lo);
 
   return {
     temperature_c: Math.round(temp * 10) / 10,
@@ -57,7 +87,7 @@ export async function fetchWeather(
     condition: weatherCodeLabel(Number(c.weather_code ?? 0)),
     climate_risk: riskFromHumidityRain(humidity, rain),
     source: "open-meteo",
-    location: "Manabí, Ecuador",
+    location,
   };
 }
 
@@ -105,6 +135,7 @@ export async function fetchWeatherBundle(
 ): Promise<WeatherBundle> {
   const la = lat ?? cfg.defaultLat;
   const lo = lon ?? cfg.defaultLon;
+  const usedDefault = lat == null || lon == null;
   const url = new URL("https://api.open-meteo.com/v1/forecast");
   url.searchParams.set("latitude", String(la));
   url.searchParams.set("longitude", String(lo));
@@ -128,6 +159,9 @@ export async function fetchWeatherBundle(
   const humidity = Number(c.relative_humidity_2m ?? 80);
   const rain = Number(c.precipitation ?? 0);
   const wind = Number(c.wind_speed_10m ?? 5);
+  const location = usedDefault
+    ? "Portoviejo, Manabí (predeterminado)"
+    : await resolveLocationLabel(la, lo);
   const current: WeatherSnapshot = {
     temperature_c: Math.round(temp * 10) / 10,
     humidity_pct: Math.round(humidity * 10) / 10,
@@ -136,7 +170,7 @@ export async function fetchWeatherBundle(
     condition: weatherCodeLabel(Number(c.weather_code ?? 0)),
     climate_risk: riskFromHumidityRain(humidity, rain),
     source: "open-meteo",
-    location: "Manabí, Ecuador",
+    location,
   };
 
   const daily = data.daily ?? {};

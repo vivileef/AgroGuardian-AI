@@ -97,8 +97,9 @@ export default function MercadosPage() {
         </div>
         <div className="rounded-2xl border border-forest/10 bg-cream p-5 text-sm text-ink/60">
           <p>
-            Precios de referencia para orientación de venta (Portoviejo, Manta, Chone). Marketplace
-            de compradores: próximamente.
+            Precios de referencia para orientación de venta en Manabí y costa ecuatoriana (Portoviejo,
+            Manta, Chone, Guayaquil). Valores actualizados a julio 2026 según rangos de mercado local;
+            verifica cotización del día con tu comprador.
           </p>
           <p className="mt-3 text-xs text-ink/40">
             Actualizado: {prices[0]?.updated ?? "—"}.

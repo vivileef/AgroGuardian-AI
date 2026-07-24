@@ -87,6 +87,11 @@ export default function FarmMapInner({
     [farms, selectedId]
   );
 
+  const visible = useMemo(() => {
+    if (!selectedId) return farms;
+    return farms.filter((f) => f.id === selectedId);
+  }, [farms, selectedId]);
+
   const selectedPoly = useMemo(() => {
     if (!selected) return null;
     const ha = Number(selected.area_ha) > 0 ? Number(selected.area_ha) : 1;
@@ -102,7 +107,7 @@ export default function FarmMapInner({
   return (
     <div className="overflow-hidden rounded-2xl border border-forest/10" style={{ height }}>
       <MapContainer
-        key={`map-${selectedId ?? "none"}-${farms.length}`}
+        key={`map-${selectedId ?? "none"}-${visible.length}`}
         center={center}
         zoom={selected ? 15 : 11}
         style={{ height: "100%", width: "100%" }}
@@ -114,30 +119,26 @@ export default function FarmMapInner({
         />
         <FocusSelected selected={selected} positions={selectedPoly} />
 
-        {farms.map((f) => {
+        {visible.map((f) => {
           const isSelected = f.id === selectedId;
           const ha = Number(f.area_ha) > 0 ? Number(f.area_ha) : f.kind === "plot" ? 1 : 0;
-          const fill =
-            f.color ??
-            (f.kind === "farm" ? STATUS_COLORS[f.status] : STATUS_COLORS[f.status]) ??
-            "#2D6A4F";
-          const showArea = f.kind === "plot" || (f.kind === "farm" && isSelected) || isSelected;
+          const fill = f.color ?? STATUS_COLORS[f.status] ?? "#2D6A4F";
+          const showArea = ha > 0 && (f.kind === "plot" || isSelected || !selectedId);
 
           return (
             <Fragment key={f.id}>
-              {showArea && ha > 0 && (
+              {showArea && (
                 <Polygon
                   positions={areaPolygon(f.lat, f.lng, ha)}
                   pathOptions={{
-                    color: isSelected ? "#081c15" : fill,
-                    weight: isSelected ? 4 : f.kind === "plot" ? 2.5 : 2,
+                    color: isSelected || selectedId ? "#081c15" : fill,
+                    weight: isSelected || selectedId ? 4 : f.kind === "plot" ? 2.5 : 2,
                     fillColor: fill,
-                    fillOpacity: isSelected ? 0.45 : f.kind === "plot" ? 0.28 : 0.18,
-                    dashArray: isSelected || f.kind === "plot" ? undefined : "4 4",
+                    fillOpacity: isSelected || selectedId ? 0.45 : f.kind === "plot" ? 0.28 : 0.18,
                   }}
                 >
                   <Tooltip
-                    permanent={f.kind === "plot"}
+                    permanent={f.kind === "plot" || Boolean(selectedId)}
                     direction="center"
                     opacity={0.95}
                     className="ag-plot-label"
@@ -168,22 +169,14 @@ export default function FarmMapInner({
               )}
               <CircleMarker
                 center={[f.lat, f.lng]}
-                radius={isSelected ? 14 : f.kind === "plot" ? 8 : 10}
+                radius={isSelected || selectedId ? 14 : f.kind === "plot" ? 8 : 10}
                 pathOptions={{
-                  color: isSelected ? "#081c15" : fill,
+                  color: isSelected || selectedId ? "#081c15" : fill,
                   fillColor: fill,
-                  fillOpacity: isSelected ? 1 : 0.85,
-                  weight: isSelected ? 3 : 2,
+                  fillOpacity: 1,
+                  weight: 3,
                 }}
-              >
-                {!showArea && (
-                  <Popup>
-                    <strong>{f.label ?? f.name}</strong>
-                    <br />
-                    Estado: {f.status}
-                  </Popup>
-                )}
-              </CircleMarker>
+              />
             </Fragment>
           );
         })}

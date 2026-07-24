@@ -10,6 +10,7 @@ import {
   getCase,
   getLessons,
   pdfUrl,
+  regenerateCase,
   setRecommendationDone,
   type DiagnosisResult,
   type Lesson,
@@ -23,6 +24,7 @@ export default function DiagnosticoDetailPage() {
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [regenBusy, setRegenBusy] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -54,6 +56,26 @@ export default function DiagnosticoDetailPage() {
       setError(e instanceof Error ? e.message : "No se pudo actualizar");
     } finally {
       setBusyId(null);
+    }
+  };
+
+  const onRegenerate = async () => {
+    if (!caseData || !id) return;
+    setRegenBusy(true);
+    setError(null);
+    try {
+      const updated = await regenerateCase(id);
+      setCaseData(updated);
+      try {
+        const ls = await getLessons(updated.detection.disease);
+        setLessons(ls.slice(0, 2));
+      } catch {
+        /* optional */
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo regenerar");
+    } finally {
+      setRegenBusy(false);
     }
   };
 
@@ -92,7 +114,7 @@ export default function DiagnosticoDetailPage() {
             {d.crop} · {format(new Date(caseData.created_at), "dd MMM yyyy HH:mm", { locale: es })}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <span
             className={cn(
               "rounded-md border px-2 py-1 text-[10px] font-semibold uppercase",
@@ -101,6 +123,15 @@ export default function DiagnosticoDetailPage() {
           >
             {d.risk_level}
           </span>
+          <button
+            type="button"
+            disabled={regenBusy}
+            onClick={() => void onRegenerate()}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-leaf/30 bg-leaf/10 px-3 py-2 text-xs font-medium text-leaf-dark hover:bg-leaf/20 disabled:opacity-40"
+          >
+            <Sparkles className="h-3.5 w-3.5" />
+            {regenBusy ? "Regenerando…" : "Regenerar diagnóstico"}
+          </button>
           <a
             href={pdfUrl(caseData.id)}
             target="_blank"
@@ -111,6 +142,12 @@ export default function DiagnosticoDetailPage() {
           </a>
         </div>
       </header>
+
+      {error && (
+        <p className="text-sm text-amber-900 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
+          {error}
+        </p>
+      )}
 
       <section className="rounded-2xl border border-forest/10 bg-cream p-5 space-y-3">
         <h2 className="font-display text-xl text-forest">Detección</h2>

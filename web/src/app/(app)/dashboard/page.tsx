@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, Droplets, Leaf, ScanLine, Thermometer } from "lucide-react";
 import { FarmMap } from "@/components/map/FarmMap";
-import { getCases, getCrops, getWeather, type Crop, type DiagnosisResult, type WeatherSnapshot } from "@/lib/api";
+import { getCases, getCrops, getFarms, getWeather, type Crop, type DiagnosisResult, type WeatherSnapshot } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 export default function DashboardPage() {
@@ -13,22 +13,33 @@ export default function DashboardPage() {
   const [cases, setCases] = useState<DiagnosisResult[]>([]);
 
   useEffect(() => {
-    getWeather()
-      .then(setWeather)
-      .catch(() =>
-        setWeather({
-          temperature_c: 28.4,
-          humidity_pct: 87,
-          rain_mm: 6.2,
-          wind_kmh: 12,
-          condition: "Humedad alta",
-          climate_risk: "alto",
-          source: "demo",
-          location: "Portoviejo, Manabí",
-        })
-      );
-    getCrops().then(setCrops).catch(() => setCrops([]));
-    getCases().then(setCases).catch(() => setCases([]));
+    let cancelled = false;
+    (async () => {
+      let lat: number | undefined;
+      let lon: number | undefined;
+      try {
+        const farms = await getFarms();
+        if (farms[0]) {
+          lat = farms[0].lat;
+          lon = farms[0].lng;
+        }
+      } catch {
+        /* optional */
+      }
+      try {
+        const w = await getWeather(lat, lon);
+        if (!cancelled) setWeather(w);
+      } catch {
+        if (!cancelled) setWeather(null);
+      }
+    })();
+    getCrops().then((c) => !cancelled && setCrops(c)).catch(() => !cancelled && setCrops([]));
+    getCases()
+      .then((rows) => !cancelled && setCases(rows.filter((c) => !c.demo)))
+      .catch(() => !cancelled && setCases([]));
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const avgHealth = crops.length
@@ -62,7 +73,9 @@ export default function DashboardPage() {
       <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-xs uppercase tracking-[0.2em] text-leaf">AgroGuardian AI</p>
-          <h1 className="font-display text-3xl sm:text-4xl text-forest mt-1">Buenos días</h1>
+          <h1 className="font-display text-3xl sm:text-4xl text-forest mt-1">
+            Resumen de tu finca
+          </h1>
           <p className="mt-1 text-sm text-ink/60 max-w-lg">
             Sanidad vegetal en tiempo real — detecta plagas antes de que el daño sea evidente.
           </p>

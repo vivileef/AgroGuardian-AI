@@ -72,11 +72,17 @@ export function getCaseStore() {
 }
 
 export const MARKET_PRICES = [
-  { crop: "Plátano", price_usd: 0.42, unit: "kg", trend: "up" as const, market: "Portoviejo" },
-  { crop: "Cacao", price_usd: 3.15, unit: "kg", trend: "stable" as const, market: "Manta" },
-  { crop: "Maíz", price_usd: 0.38, unit: "kg", trend: "down" as const, market: "Chone" },
-  { crop: "Café", price_usd: 4.8, unit: "kg", trend: "up" as const, market: "Jipijapa" },
-  { crop: "Arroz", price_usd: 0.55, unit: "kg", trend: "stable" as const, market: "Portoviejo" },
+  // Referencias orientativas Manabí / costa (USD), actualizadas jul 2026
+  { crop: "Plátano Barraganete", price_usd: 0.48, unit: "kg", trend: "up" as const, market: "Portoviejo" },
+  { crop: "Banano de exportación", price_usd: 0.62, unit: "kg", trend: "stable" as const, market: "Manta" },
+  { crop: "Cacao Nacional fino", price_usd: 8.75, unit: "kg", trend: "up" as const, market: "Guayaquil / Manta" },
+  { crop: "Cacao CCN-51", price_usd: 6.40, unit: "kg", trend: "stable" as const, market: "Calceta" },
+  { crop: "Maíz duro", price_usd: 0.44, unit: "kg", trend: "down" as const, market: "Chone" },
+  { crop: "Arroz pilado", price_usd: 0.58, unit: "kg", trend: "stable" as const, market: "Portoviejo" },
+  { crop: "Café arábiga pergamino", price_usd: 5.90, unit: "kg", trend: "up" as const, market: "Jipijapa" },
+  { crop: "Maracuyá", price_usd: 0.55, unit: "kg", trend: "up" as const, market: "El Carmen" },
+  { crop: "Yuca", price_usd: 0.28, unit: "kg", trend: "stable" as const, market: "Chone" },
+  { crop: "Limón sutil", price_usd: 0.72, unit: "kg", trend: "down" as const, market: "Portoviejo" },
 ];
 
 export function isDbMissingError(err: unknown) {

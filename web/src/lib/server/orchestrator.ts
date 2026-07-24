@@ -257,3 +257,101 @@ export async function runDiagnosisPipeline(
     demo: forceDemo,
   };
 }
+
+/** Re-run agronomist + weather for an existing case (keeps same id and detection). */
+export async function regenerateDiagnosis(
+  cfg: AppConfig,
+  existing: DiagnosisResult,
+  opts?: { lat?: number | null; lon?: number | null }
+): Promise<DiagnosisResult> {
+  const traces: AgentTrace[] = [];
+  const pushTrace = (trace: AgentTrace) => traces.push(trace);
+  const forceDemo = cfg.demoMode || !hasOpenRouter(cfg);
+
+  let t0 = Date.now();
+  let climate: WeatherSnapshot;
+  let climateStatus = "ok";
+  try {
+    climate = await fetchWeather(cfg, opts?.lat, opts?.lon);
+  } catch {
+    climate = existing.weather ?? demoWeather();
+    climateStatus = "fallback-demo";
+  }
+  pushTrace({
+    agent: "Climate Agent",
+    status: climateStatus,
+    summary: `${climate.condition} · ${climate.humidity_pct}% humedad · riesgo ${climate.climate_risk}`,
+    duration_ms: Date.now() - t0,
+  });
+
+  // Keep previous vision detection; mark as reused
+  pushTrace({
+    agent: "Disease Detector",
+    status: "ok",
+    summary: `Detección previa reutilizada: ${existing.detection.disease} · ${Math.round(existing.detection.confidence * 100)}%`,
+    duration_ms: 2,
+  });
+
+  t0 = Date.now();
+  let diagnosis: string;
+  let recommendations: Recommendation[];
+  let follow_up: FollowUpPlan;
+  let agronomistFallback = forceDemo;
+
+  if (forceDemo) {
+    ({ diagnosis, recommendations, follow_up } = demoAgronomist(existing.detection, climate));
+    pushTrace({
+      agent: "Agronomist",
+      status: "demo",
+      summary: "Plan regenerado (referencia)",
+      duration_ms: Date.now() - t0,
+    });
+  } else {
+    try {
+      ({ diagnosis, recommendations, follow_up } = await llmAgronomist(
+        cfg,
+        existing.detection,
+        climate
+      ));
+      if (!diagnosis.trim()) {
+        ({ diagnosis, recommendations, follow_up } = demoAgronomist(existing.detection, climate));
+        agronomistFallback = true;
+      }
+      pushTrace({
+        agent: "Agronomist",
+        status: agronomistFallback ? "fallback-demo" : "ok",
+        summary: "Diagnóstico regenerado",
+        duration_ms: Date.now() - t0,
+      });
+    } catch (e) {
+      agronomistFallback = true;
+      ({ diagnosis, recommendations, follow_up } = demoAgronomist(existing.detection, climate));
+      pushTrace({
+        agent: "Agronomist",
+        status: "fallback-demo",
+        summary: `LLM falló (${e instanceof Error ? e.message.slice(0, 60) : "error"}); plan de referencia`,
+        duration_ms: Date.now() - t0,
+      });
+    }
+  }
+
+  pushTrace({
+    agent: "Report Agent",
+    status: "ok",
+    summary: "Reporte actualizado tras regeneración",
+    duration_ms: 5,
+    data: { recommendations: recommendations.length },
+  });
+
+  return {
+    ...existing,
+    created_at: existing.created_at,
+    detection: existing.detection,
+    weather: climate,
+    diagnosis,
+    recommendations,
+    follow_up,
+    agent_trace: traces,
+    demo: forceDemo,
+  };
+}

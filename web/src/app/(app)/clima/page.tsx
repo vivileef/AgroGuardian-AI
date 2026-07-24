@@ -1,39 +1,134 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { CloudRain, Droplets, Thermometer, Wind, SprayCan } from "lucide-react";
-import { getWeatherBundle, type WeatherBundle } from "@/lib/api";
+import { useEffect, useMemo, useState } from "react";
+import { CloudRain, Droplets, MapPin, Thermometer, Wind, SprayCan } from "lucide-react";
+import { getFarms, getWeatherBundle, type WeatherBundle } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
-const SOIL_DATA = [
-  { label: "pH", value: "6.2", status: "Óptimo para plátano" },
-  { label: "Materia orgánica", value: "3.8%", status: "Bueno" },
-  { label: "Nitrógeno (N)", value: "Medio", status: "Fertilizar en 2 semanas" },
-  { label: "Fósforo (P)", value: "Alto", status: "Adecuado" },
-  { label: "Potasio (K)", value: "Bajo", status: "Aplicar abono potásico" },
-  { label: "Humedad del suelo", value: "68%", status: "Saturación moderada" },
-];
+function soilFromWeather(bundle: WeatherBundle | null) {
+  if (!bundle?.current) return [];
+  const w = bundle.current;
+  const soilMoisture = Math.min(
+    95,
+    Math.max(25, Math.round(w.humidity_pct * 0.55 + w.rain_mm * 4))
+  );
+  const drainage =
+    w.rain_mm >= 8 ? "Riesgo de encharcamiento" : w.rain_mm >= 3 ? "Humedad alta" : "Drenaje aceptable";
+  const irrigation =
+    soilMoisture < 40
+      ? "Considera riego dirigido"
+      : soilMoisture > 75
+        ? "Evita riego adicional hoy"
+        : "Humedad adecuada para la mayoría de cultivos";
+  const diseasePressure =
+    w.climate_risk === "alto" || w.climate_risk === "critico"
+      ? "Alta — monitorea hojas y frutos"
+      : w.climate_risk === "medio"
+        ? "Media — vigilancia rutinaria"
+        : "Baja";
+
+  return [
+    {
+      label: "Humedad estimada del suelo",
+      value: `${soilMoisture}%`,
+      status: irrigation,
+    },
+    {
+      label: "Condición hídrica",
+      value: drainage,
+      status: `Basado en lluvia ${w.rain_mm} mm y humedad ${w.humidity_pct}%`,
+    },
+    {
+      label: "Presión sanitaria",
+      value: diseasePressure,
+      status: `Riesgo climático: ${w.climate_risk}`,
+    },
+    {
+      label: "Ventana de labranza / aplicación",
+      value: bundle.spray_window.can_spray_today ? "Favorable" : "Desfavorable",
+      status: bundle.spray_window.reason,
+    },
+  ];
+}
+
+function readGeo(): Promise<{ lat: number; lon: number } | null> {
+  return new Promise((resolve) => {
+    if (typeof navigator === "undefined" || !navigator.geolocation) {
+      resolve(null);
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => resolve({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
+      () => resolve(null),
+      { enableHighAccuracy: false, timeout: 4000, maximumAge: 600_000 }
+    );
+  });
+}
 
 export default function ClimaPage() {
   const [bundle, setBundle] = useState<WeatherBundle | null>(null);
+  const [coordsLabel, setCoordsLabel] = useState<string>("Detectando ubicación…");
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    getWeatherBundle()
-      .then(setBundle)
-      .catch(() => null);
+    let cancelled = false;
+    (async () => {
+      let lat: number | undefined;
+      let lon: number | undefined;
+      const geo = await readGeo();
+      if (geo) {
+        lat = geo.lat;
+        lon = geo.lon;
+        if (!cancelled) setCoordsLabel("Tu ubicación actual");
+      } else {
+        try {
+          const farms = await getFarms();
+          if (farms[0]) {
+            lat = farms[0].lat;
+            lon = farms[0].lng;
+            if (!cancelled) setCoordsLabel(`Finca: ${farms[0].name}`);
+          } else if (!cancelled) {
+            setCoordsLabel("Ubicación predeterminada (Portoviejo)");
+          }
+        } catch {
+          if (!cancelled) setCoordsLabel("Ubicación predeterminada (Portoviejo)");
+        }
+      }
+      try {
+        const data = await getWeatherBundle(lat, lon);
+        if (!cancelled) setBundle(data);
+      } catch (e) {
+        if (!cancelled) {
+          setError(e instanceof Error ? e.message : "No se pudo cargar el clima");
+          setBundle(null);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const weather = bundle?.current;
+  const soil = useMemo(() => soilFromWeather(bundle), [bundle]);
 
   return (
     <div className="space-y-6 animate-fade-up">
       <header>
         <p className="text-xs uppercase tracking-[0.2em] text-leaf">Ambiente</p>
         <h1 className="font-display text-3xl text-forest mt-1">Clima y suelo</h1>
-        <p className="text-sm text-ink/60 mt-1">
-          Pronóstico real y ventana de aplicación para tratamientos.
+        <p className="text-sm text-ink/60 mt-1 flex items-center gap-1.5">
+          <MapPin className="h-3.5 w-3.5 text-leaf" />
+          {coordsLabel}
+          {weather?.location ? ` · ${weather.location}` : ""}
         </p>
       </header>
+
+      {error && (
+        <p className="text-sm text-amber-900 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
+          {error}
+        </p>
+      )}
 
       {bundle && (
         <div
@@ -75,7 +170,7 @@ export default function ClimaPage() {
                 <m.icon className="h-4 w-4 text-leaf" />
               </div>
               <p className="mt-2 font-display text-2xl text-forest">{m.value}</p>
-              <p className="text-[11px] text-ink/45 mt-1">{weather.location}</p>
+              <p className="text-[11px] text-ink/45 mt-1">{weather.condition}</p>
             </div>
           ))}
         </section>
@@ -84,6 +179,9 @@ export default function ClimaPage() {
       <section className="grid lg:grid-cols-2 gap-4">
         <div className="rounded-2xl border border-forest/10 bg-cream p-5">
           <h2 className="font-display text-xl text-forest mb-4">Pronóstico 5 días</h2>
+          {!bundle && !error && (
+            <p className="text-sm text-ink/50 animate-pulse">Cargando clima local…</p>
+          )}
           <ul className="space-y-3">
             {(bundle?.forecast ?? []).map((f) => (
               <li
@@ -110,28 +208,35 @@ export default function ClimaPage() {
             ))}
           </ul>
           <p className="text-[10px] text-ink/40 mt-3">
-            Fuente: Open-Meteo · {weather?.source ?? "demo"}
+            Fuente: Open-Meteo · {weather?.source ?? "—"} · {weather?.location ?? ""}
           </p>
         </div>
 
         <div className="rounded-2xl border border-forest/10 bg-cream p-5">
-          <h2 className="font-display text-xl text-forest mb-4">Análisis de suelo</h2>
+          <h2 className="font-display text-xl text-forest mb-4">Condición de suelo (estimada)</h2>
           <ul className="space-y-2">
-            {SOIL_DATA.map((s) => (
+            {soil.map((s) => (
               <li
                 key={s.label}
-                className="flex items-center justify-between rounded-xl border border-forest/8 bg-white px-4 py-3 text-sm"
+                className="flex items-center justify-between gap-3 rounded-xl border border-forest/8 bg-white px-4 py-3 text-sm"
               >
-                <div>
+                <div className="min-w-0">
                   <p className="font-medium text-ink">{s.label}</p>
                   <p className="text-xs text-ink/50">{s.status}</p>
                 </div>
-                <span className="font-display text-lg text-leaf">{s.value}</span>
+                <span className="font-display text-base text-leaf shrink-0 text-right max-w-[40%]">
+                  {s.value}
+                </span>
               </li>
             ))}
+            {soil.length === 0 && (
+              <li className="text-sm text-ink/50 py-6 text-center">
+                Esperando datos climáticos de tu ubicación…
+              </li>
+            )}
           </ul>
           <p className="text-[10px] text-ink/40 mt-3">
-            Datos de referencia MAG Ecuador · sensores IoT próximamente
+            Estimación a partir del clima local (sin sensores IoT). No sustituye análisis de laboratorio.
           </p>
         </div>
       </section>
@@ -146,7 +251,8 @@ export default function ClimaPage() {
           )}
         >
           <strong>Riesgo climático: {weather.climate_risk.toUpperCase()}</strong> —{" "}
-          {weather.condition}. Evita riego por aspersión si la humedad supera 85%.
+          {weather.condition} en {weather.location}. Evita riego por aspersión si la humedad supera
+          85%.
         </div>
       )}
     </div>

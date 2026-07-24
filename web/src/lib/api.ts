@@ -370,6 +370,25 @@ export async function getCase(id: string) {
   return res.json() as Promise<DiagnosisResult>;
 }
 
+export async function deleteCase(id: string) {
+  const res = await apiFetch(`/api/diagnose/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+  });
+  return res.json() as Promise<{ ok: boolean }>;
+}
+
+export async function regenerateCase(
+  id: string,
+  opts?: { lat?: number; lon?: number }
+) {
+  const res = await apiFetch(`/api/diagnose/${encodeURIComponent(id)}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action: "regenerate", ...opts }),
+  });
+  return res.json() as Promise<DiagnosisResult>;
+}
+
 export async function getReportSummary(days = 30) {
   const res = await apiFetch(`/api/reports/summary?days=${days}`, { cache: "no-store" });
   return res.json() as Promise<{
