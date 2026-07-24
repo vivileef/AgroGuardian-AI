@@ -7,8 +7,8 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     openrouter_api_key: str = ""
-    openrouter_model: str = "meta-llama/llama-3.3-70b-instruct:free"
-    openrouter_vision_model: str = "google/gemma-3-27b-it:free"
+    openrouter_model: str = "google/gemma-4-26b-a4b-it:free"
+    openrouter_vision_model: str = "google/gemma-4-31b-it:free"
     openrouter_base_url: str = "https://openrouter.ai/api/v1"
 
     openweather_api_key: str = ""

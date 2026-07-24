@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
 
   const sources = [`Clima (${climate.source})`, "Historial de finca"];
 
-  if (cfg.demoMode && !hasOpenRouter(cfg)) {
+  if (cfg.demoMode || !hasOpenRouter(cfg)) {
     return NextResponse.json({
       reply: `Respecto a «${body.message}»: con humedad del ${climate.humidity_pct}% y condición «${climate.condition}», el riesgo es ${climate.climate_risk}. (Modo demo)`,
       sources,

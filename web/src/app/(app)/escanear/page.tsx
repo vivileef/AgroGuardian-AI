@@ -272,9 +272,15 @@ export default function EscanearPage() {
         <div className="rounded-2xl border border-forest/10 bg-white p-4 sm:p-6 space-y-4 shadow-sm animate-fade-up">
           {result.demo && (
             <p className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-900">
-              Modo demo (sin OpenRouter).
+              Modo demo: falta <code>OPENROUTER_API_KEY</code> o <code>DEMO_MODE=true</code>.
             </p>
           )}
+          {!result.demo &&
+            result.agent_trace?.some((t) => t.status === "fallback-demo") && (
+              <p className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-900">
+                Algunos agentes usaron respaldo local (límite o modelo no disponible en OpenRouter).
+              </p>
+            )}
 
           <AgentProgress steps={result.agent_trace} active={false} />
 

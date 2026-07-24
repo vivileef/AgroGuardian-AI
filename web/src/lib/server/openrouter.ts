@@ -63,7 +63,7 @@ export async function chatCompletion(
 
   const models = [
     opts?.model ?? cfg.openrouterModel,
-    ...(opts?.fallbackModels ?? []),
+    ...(opts?.fallbackModels ?? TEXT_FALLBACKS),
   ].filter((m, i, arr) => Boolean(m) && arr.indexOf(m) === i);
 
   let lastErr: unknown;
@@ -75,7 +75,12 @@ export async function chatCompletion(
         temperature: opts?.temperature ?? 0.2,
         max_tokens: opts?.maxTokens ?? 1200,
       });
-      const content = (res.choices[0]?.message?.content ?? "").trim();
+      const msg = res.choices[0]?.message;
+      const content = (
+        (msg?.content ?? "") ||
+        // Some free reasoning models put the answer in refusal/reasoning fields
+        String((msg as { reasoning?: string } | undefined)?.reasoning ?? "")
+      ).trim();
       if (!content) {
         lastErr = new Error(`Modelo ${model} devolvió respuesta vacía`);
         continue;
@@ -88,12 +93,18 @@ export async function chatCompletion(
   throw friendlyOpenRouterError(lastErr);
 }
 
-/** Free vision-capable models that rotate; first env override, then known fallbacks. */
+/** Free multimodal models that rotate; first env override, then known fallbacks. */
 const VISION_FALLBACKS = [
-  "google/gemma-3-27b-it:free",
-  "meta-llama/llama-3.2-11b-vision-instruct:free",
-  "qwen/qwen2.5-vl-32b-instruct:free",
-  "google/gemini-2.0-flash-exp:free",
+  "google/gemma-4-31b-it:free",
+  "google/gemma-4-26b-a4b-it:free",
+  "openrouter/free",
+];
+
+/** Text fallbacks when primary chat model is empty/unavailable. */
+export const TEXT_FALLBACKS = [
+  "google/gemma-4-26b-a4b-it:free",
+  "google/gemma-4-31b-it:free",
+  "openrouter/free",
 ];
 
 export async function visionAnalyze(

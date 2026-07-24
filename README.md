@@ -21,7 +21,7 @@ Plataforma de **sanidad vegetal** para agricultores de Manabí: foto de hoja →
 2. Variables de entorno (ver `web/.env.example`):
    - Clerk: `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`, URLs de sign-in/up
    - Supabase: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SERVICE_ROLE_KEY`
-   - OpenRouter: `OPENROUTER_API_KEY`, `OPENROUTER_MODEL=openai/gpt-oss-20b:free`, `OPENROUTER_VISION_MODEL=google/gemma-4-31b-it:free`
+   - OpenRouter: `OPENROUTER_API_KEY`, `OPENROUTER_MODEL=google/gemma-4-26b-a4b-it:free`, `OPENROUTER_VISION_MODEL=google/gemma-4-31b-it:free`
 3. **No uses** `NEXT_PUBLIC_API_URL` apuntando a `:8000` — la API corre en el mismo dominio
 4. En Clerk Dashboard agrega tu dominio `*.vercel.app`
 5. Ejecuta migraciones SQL en Supabase (`supabase/migrations/`)

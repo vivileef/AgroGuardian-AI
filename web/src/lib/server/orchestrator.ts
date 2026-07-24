@@ -1,7 +1,7 @@
 import { randomUUID } from "crypto";
 import type { AppConfig } from "./config";
 import { hasOpenRouter } from "./config";
-import { chatCompletion, extractJson, visionAnalyze } from "./openrouter";
+import { chatCompletion, extractJson, TEXT_FALLBACKS, visionAnalyze } from "./openrouter";
 import { demoWeather, fetchWeather } from "./weather";
 import type {
   AgentTrace,
@@ -102,11 +102,7 @@ Máximo 4 recomendaciones.`;
       { role: "user", content: prompt },
     ],
     {
-      fallbackModels: [
-        "openai/gpt-oss-20b:free",
-        "meta-llama/llama-3.3-70b-instruct:free",
-        "google/gemma-3-27b-it:free",
-      ],
+      fallbackModels: TEXT_FALLBACKS,
     }
   );
 
@@ -138,9 +134,9 @@ export async function runDiagnosisPipeline(
     opts.onProgress?.(trace);
   };
 
-  // Demo if forced, or if there is no API key at all.
+  // Demo only when forced (DEMO_MODE) or there is no API key at all.
   const forceDemo = cfg.demoMode || !hasOpenRouter(cfg);
-  let usedFallback = forceDemo;
+  let agronomistFallback = forceDemo;
 
   let t0 = Date.now();
   let detection: DiseaseDetection;
@@ -174,7 +170,6 @@ export async function runDiagnosisPipeline(
         duration_ms: Date.now() - t0,
       });
     } catch (e) {
-      usedFallback = true;
       detection = demoDetection(opts.cropHint);
       pushTrace({
         agent: "Disease Detector",
@@ -206,11 +201,12 @@ export async function runDiagnosisPipeline(
   let recommendations: Recommendation[];
   let follow_up: FollowUpPlan;
 
-  if (forceDemo || usedFallback) {
+  // Always try the LLM agronomist when OpenRouter is configured, even if vision fell back.
+  if (forceDemo) {
     ({ diagnosis, recommendations, follow_up } = demoAgronomist(detection, climate));
     pushTrace({
       agent: "Agronomist",
-      status: usedFallback && !forceDemo ? "fallback-demo" : "demo",
+      status: "demo",
       summary: "Plan de tratamiento (referencia)",
       duration_ms: Date.now() - t0,
     });
@@ -219,16 +215,16 @@ export async function runDiagnosisPipeline(
       ({ diagnosis, recommendations, follow_up } = await llmAgronomist(cfg, detection, climate));
       if (!diagnosis.trim()) {
         ({ diagnosis, recommendations, follow_up } = demoAgronomist(detection, climate));
-        usedFallback = true;
+        agronomistFallback = true;
       }
       pushTrace({
         agent: "Agronomist",
-        status: usedFallback ? "fallback-demo" : "ok",
+        status: agronomistFallback ? "fallback-demo" : "ok",
         summary: "Diagnóstico contextualizado",
         duration_ms: Date.now() - t0,
       });
     } catch (e) {
-      usedFallback = true;
+      agronomistFallback = true;
       ({ diagnosis, recommendations, follow_up } = demoAgronomist(detection, climate));
       pushTrace({
         agent: "Agronomist",
@@ -256,6 +252,8 @@ export async function runDiagnosisPipeline(
     recommendations,
     follow_up,
     agent_trace: traces,
-    demo: forceDemo || usedFallback,
+    // True only when we never used OpenRouter (no key / DEMO_MODE).
+    // Partial agent fallbacks are reflected in agent_trace status, not this flag.
+    demo: forceDemo,
   };
 }
