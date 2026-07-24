@@ -32,3 +32,5 @@ backend/uploads/
 backend/data/
 backend/tmp/
 *.pdf
+
+.vercel

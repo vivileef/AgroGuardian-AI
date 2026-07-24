@@ -1,5 +1,5 @@
-const CACHE = "agroguardian-v1";
-const ASSETS = ["/", "/dashboard", "/escanear", "/manifest.webmanifest"];
+const CACHE = "agroguardian-v2";
+const ASSETS = ["/manifest.webmanifest", "/icons/icon-192.png", "/icons/icon-512.png"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(ASSETS)).then(() => self.skipWaiting()));
@@ -18,11 +18,24 @@ self.addEventListener("fetch", (event) => {
   if (url.origin !== self.location.origin) return;
   if (url.pathname.startsWith("/api")) return;
 
+  // Always network-first for documents/navigations (auth + HTML must be fresh).
+  const isDocument =
+    request.mode === "navigate" ||
+    request.destination === "document" ||
+    (request.headers.get("accept") || "").includes("text/html");
+
+  if (isDocument) {
+    event.respondWith(
+      fetch(request).catch(() => caches.match(request).then((cached) => cached || Response.error()))
+    );
+    return;
+  }
+
   event.respondWith(
     caches.match(request).then((cached) => {
       const fetched = fetch(request)
         .then((res) => {
-          if (res.ok && url.pathname.match(/\.(js|css|png|jpg|svg|webp|ico)$/)) {
+          if (res.ok && url.pathname.match(/\.(js|css|png|jpg|jpeg|svg|webp|ico|woff2?)$/)) {
             const clone = res.clone();
             void caches.open(CACHE).then((cache) => cache.put(request, clone));
           }
