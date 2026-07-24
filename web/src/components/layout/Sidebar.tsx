@@ -14,6 +14,7 @@ import {
   Sprout,
   CloudSun,
   TrendingUp,
+  BookOpen,
   GraduationCap,
 } from "lucide-react";
 import { AuthSlot } from "@/components/layout/AuthSlot";
@@ -29,7 +30,8 @@ const NAV = [
   { href: "/asistente", label: "Asistente IA", icon: Bot, badge: "Nuevo" },
   { href: "/reportes", label: "Reportes", icon: FileText },
   { href: "/mercados", label: "Mercados y Precios", icon: TrendingUp },
-  { href: "/capacitacion", label: "Capacitación", icon: GraduationCap },
+  { href: "/enciclopedia", label: "Enciclopedia", icon: BookOpen },
+  { href: "/capacitaciones", label: "Capacitaciones", icon: GraduationCap },
   { href: "/configuracion", label: "Configuración", icon: Settings },
 ];
 
@@ -88,7 +90,8 @@ export function Sidebar() {
 
 export function MobileNav() {
   const pathname = usePathname();
-  const items = [NAV[0], NAV[1], NAV[2], NAV[3], NAV[6]];
+  // Dashboard · Cultivos · Escanear · Diagnósticos · Enciclopedia
+  const items = [NAV[0], NAV[1], NAV[2], NAV[3], NAV[9]];
 
   return (
     <nav className="lg:hidden fixed bottom-0 inset-x-0 z-50 border-t border-forest/10 bg-cream/95 backdrop-blur-md pb-[env(safe-area-inset-bottom)]">
