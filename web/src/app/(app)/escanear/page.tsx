@@ -300,13 +300,63 @@ export default function EscanearPage() {
           </div>
 
           <p className="text-sm leading-relaxed text-ink/80">{result.diagnosis}</p>
+          {result.detection.rationale && (
+            <p className="text-xs text-ink/50">{result.detection.rationale}</p>
+          )}
+
+          <div className="grid sm:grid-cols-2 gap-3 rounded-xl border border-forest/10 bg-mist/60 p-3 text-sm">
+            <p>
+              Clima <strong>{result.weather.condition}</strong>
+            </p>
+            <p>
+              Temp <strong>{result.weather.temperature_c}°C</strong> · Humedad{" "}
+              <strong>{result.weather.humidity_pct}%</strong>
+            </p>
+            <p>
+              Lluvia <strong>{result.weather.rain_mm} mm</strong>
+            </p>
+            <p>
+              Riesgo climático <strong className="uppercase">{result.weather.climate_risk}</strong>
+            </p>
+          </div>
+
+          {result.recommendations?.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-xs uppercase tracking-wider text-ink/45">Plan de tratamiento</p>
+              <ul className="space-y-2">
+                {result.recommendations.slice(0, 4).map((r, i) => (
+                  <li
+                    key={r.id ?? `${r.title}-${i}`}
+                    className="rounded-xl border border-forest/10 bg-mist/40 px-3 py-2 text-sm"
+                  >
+                    <p className="font-medium text-forest">{r.title}</p>
+                    <p className="text-xs text-ink/55 mt-0.5">{r.detail}</p>
+                    <p className="text-[10px] uppercase text-ink/40 mt-1">{r.timeframe}</p>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {result.follow_up?.steps?.length > 0 && (
+            <div className="rounded-xl border border-forest/10 bg-white px-3 py-2.5">
+              <p className="text-xs font-medium text-ink/50 mb-1">
+                Seguimiento en {result.follow_up.check_in_hours} h
+              </p>
+              <ul className="text-xs text-ink/60 list-disc pl-4 space-y-0.5">
+                {result.follow_up.steps.map((s) => (
+                  <li key={s}>{s}</li>
+                ))}
+              </ul>
+            </div>
+          )}
 
           <div className="flex flex-wrap gap-2 pt-1">
             <Link
               href={`/diagnosticos/${result.id}`}
               className="rounded-xl bg-leaf px-4 py-2.5 text-sm font-medium text-white hover:bg-leaf-dark"
             >
-              Ver plan y marcar acciones
+              Ver análisis completo
             </Link>
             <a
               href={pdfUrl(result.id)}
@@ -316,6 +366,12 @@ export default function EscanearPage() {
             >
               Descargar PDF
             </a>
+            <Link
+              href="/enciclopedia"
+              className="rounded-xl border border-forest/15 px-4 py-2.5 text-sm hover:bg-mist"
+            >
+              Enciclopedia
+            </Link>
             <button
               type="button"
               onClick={() => router.push("/diagnosticos")}

@@ -328,9 +328,15 @@ export type Lesson = {
   slug: string;
   title: string;
   crop: string | null;
+  infection_type?: "Hongo" | "Bacteria" | "Virus" | "Plaga" | "Fisiopatia";
   disease_keywords: string[];
   duration_min: number;
   content_md: string;
+  description?: string;
+  prevention_steps?: string[];
+  image_src?: string;
+  image_alt?: string;
+  symptoms?: string[];
 };
 
 export async function getLessons(disease?: string) {

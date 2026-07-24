@@ -5,7 +5,7 @@ import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
-import { CheckCircle2, Circle, BookOpen } from "lucide-react";
+import { BookOpen, CheckCircle2, Circle, CloudSun, Sparkles } from "lucide-react";
 import {
   getCase,
   getLessons,
@@ -75,6 +75,7 @@ export default function DiagnosticoDetailPage() {
   }
 
   const d = caseData.detection;
+  const w = caseData.weather;
   const done = caseData.recommendations.filter((r) => r.completed).length;
   const total = caseData.recommendations.length;
 
@@ -85,6 +86,7 @@ export default function DiagnosticoDetailPage() {
           <Link href="/diagnosticos" className="text-xs text-leaf hover:underline">
             ← Historial
           </Link>
+          <p className="text-xs uppercase tracking-[0.2em] text-leaf mt-2">Análisis completo</p>
           <h1 className="font-display text-3xl text-forest mt-1">{d.disease}</h1>
           <p className="text-sm text-ink/60 mt-1">
             {d.crop} · {format(new Date(caseData.created_at), "dd MMM yyyy HH:mm", { locale: es })}
@@ -111,6 +113,7 @@ export default function DiagnosticoDetailPage() {
       </header>
 
       <section className="rounded-2xl border border-forest/10 bg-cream p-5 space-y-3">
+        <h2 className="font-display text-xl text-forest">Detección</h2>
         <div className="flex flex-wrap gap-4 text-sm">
           <p>
             Confianza <strong>{pct(d.confidence)}</strong>
@@ -119,12 +122,43 @@ export default function DiagnosticoDetailPage() {
             Parte afectada <strong>{d.affected_part}</strong>
           </p>
           <p>
-            Clima <strong>{caseData.weather.condition}</strong> ({caseData.weather.humidity_pct}%
-            humedad)
+            Riesgo <strong className="uppercase">{d.risk_level}</strong>
           </p>
         </div>
         <p className="text-sm text-ink/80 leading-relaxed">{caseData.diagnosis}</p>
-        <p className="text-xs text-ink/45">{d.rationale}</p>
+        {d.rationale && <p className="text-xs text-ink/45">{d.rationale}</p>}
+      </section>
+
+      <section className="rounded-2xl border border-forest/10 bg-cream p-5 space-y-3">
+        <h2 className="font-display text-xl text-forest flex items-center gap-2">
+          <CloudSun className="h-5 w-5 text-leaf" /> Clima en el momento del caso
+        </h2>
+        <div className="grid sm:grid-cols-2 gap-3 text-sm">
+          <p>
+            Ubicación <strong>{w.location}</strong>
+          </p>
+          <p>
+            Condición <strong>{w.condition}</strong>
+          </p>
+          <p>
+            Temperatura <strong>{w.temperature_c}°C</strong>
+          </p>
+          <p>
+            Humedad <strong>{w.humidity_pct}%</strong>
+          </p>
+          <p>
+            Lluvia <strong>{w.rain_mm} mm</strong>
+          </p>
+          <p>
+            Viento <strong>{w.wind_kmh} km/h</strong>
+          </p>
+          <p>
+            Riesgo climático <strong className="uppercase">{w.climate_risk}</strong>
+          </p>
+          <p>
+            Fuente <strong>{w.source}</strong>
+          </p>
+        </div>
       </section>
 
       <section className="rounded-2xl border border-forest/10 bg-cream p-5 space-y-3">
@@ -196,16 +230,40 @@ export default function DiagnosticoDetailPage() {
         )}
       </section>
 
+      {caseData.agent_trace?.length > 0 && (
+        <section className="rounded-2xl border border-forest/10 bg-cream p-5 space-y-3">
+          <h2 className="font-display text-xl text-forest flex items-center gap-2">
+            <Sparkles className="h-5 w-5 text-leaf" /> Trazabilidad de agentes
+          </h2>
+          <ul className="space-y-2">
+            {caseData.agent_trace.map((step, i) => (
+              <li
+                key={`${step.agent}-${i}`}
+                className="rounded-xl border border-forest/10 bg-white px-3 py-2.5 text-sm"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <p className="font-medium text-forest">{step.agent}</p>
+                  <span className="text-[10px] uppercase text-ink/40">
+                    {step.status} · {step.duration_ms} ms
+                  </span>
+                </div>
+                <p className="text-xs text-ink/60 mt-1">{step.summary}</p>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       {lessons.length > 0 && (
         <section className="rounded-2xl border border-forest/10 bg-cream p-5 space-y-3">
           <h2 className="font-display text-xl text-forest flex items-center gap-2">
-            <BookOpen className="h-5 w-5 text-leaf" /> Aprende sobre esto
+            <BookOpen className="h-5 w-5 text-leaf" /> Enciclopedia relacionada
           </h2>
           <ul className="space-y-2">
             {lessons.map((l) => (
               <li key={l.id}>
                 <Link
-                  href={`/capacitacion?lesson=${l.slug}`}
+                  href={`/enciclopedia?lesson=${l.slug}`}
                   className="block rounded-xl border border-forest/10 bg-white px-4 py-3 hover:border-leaf/40"
                 >
                   <p className="text-sm font-medium text-forest">{l.title}</p>
